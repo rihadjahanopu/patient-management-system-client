@@ -33,7 +33,8 @@ import {
   Database,
   X,
   Eye,
-  Clock
+  Clock,
+  Trash2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -184,6 +185,27 @@ export default function AdminPage() {
       loadData();
     } catch (e: any) {
       setError(e.message);
+    }
+  };
+
+  const handleDeletePrescription = async (rxId: string) => {
+    if (!window.confirm('Are you sure you want to permanently delete this prescription record? This action cannot be undone.')) {
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      await api.prescriptions.delete(rxId);
+      setSuccess('Prescription record deleted successfully.');
+      if (selectedRx?._id === rxId) {
+        setSelectedRx(null);
+      }
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete prescription.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1215,10 +1237,16 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        <div className="flex justify-end pt-1">
+                        <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-200/60">
+                          <button
+                            onClick={() => handleDeletePrescription(rx._id)}
+                            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                          </button>
                           <button
                             onClick={() => setSelectedRx(rx)}
-                            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5"
+                            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                           >
                             <Eye className="w-3.5 h-3.5 text-emerald-400" /> View Full Details
                           </button>
@@ -1429,6 +1457,21 @@ export default function AdminPage() {
                   <p className="text-slate-800">{selectedRx.advice}</p>
                 </div>
               )}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-between items-center gap-3">
+              <button
+                onClick={() => handleDeletePrescription(selectedRx._id)}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-rose-600/20 active:scale-95 cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Delete Prescription Permanently
+              </button>
+              <button
+                onClick={() => setSelectedRx(null)}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-xl transition-all active:scale-95 cursor-pointer"
+              >
+                Close Window
+              </button>
             </div>
           </div>
         </div>

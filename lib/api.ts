@@ -105,6 +105,8 @@ export const api = {
       request(`/prescriptions/appointment/${appointmentId}`),
     getDoctorHistory: (params?: Record<string, string>) =>
       request('/prescriptions/doctor/history', { params }),
+    delete: (id: string) =>
+      request(`/prescriptions/${id}`, { method: 'DELETE' }),
   },
 
   // ─── Clinic Settings ──────────────────────────────────────────
