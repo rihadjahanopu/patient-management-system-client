@@ -57,11 +57,33 @@ export default function AdminPage() {
     return true;
   });
 
-  const handleToggleTimeSlot = (enabled: boolean) => {
+  const handleToggleTimeSlot = async (enabled: boolean): Promise<void> => {
     setTimeSlotEnabled(enabled);
-    localStorage.setItem('time_slot_enabled', enabled ? 'true' : 'false');
-    window.dispatchEvent(new Event('storage'));
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('time_slot_enabled', enabled ? 'true' : 'false');
+      window.dispatchEvent(new Event('storage'));
+    }
+    try {
+      await api.settings.updateClinic({ enableTimeSlot: enabled });
+    } catch (err) {
+      console.warn('Could not save time slot setting to DB:', err);
+    }
   };
+
+  useEffect(() => {
+    api.settings
+      .getClinic()
+      .then((res: any) => {
+        if (res && res.setting) {
+          const enabled: boolean = res.setting.enableTimeSlot !== false;
+          setTimeSlotEnabled(enabled);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('time_slot_enabled', enabled ? 'true' : 'false');
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // User filters
   const [searchTerm, setSearchTerm] = useState('');

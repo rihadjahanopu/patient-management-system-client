@@ -18,11 +18,14 @@ import {
   Search,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useClinicSetting } from '@/hooks/useClinicSetting';
 
 export default function ReceptionistPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const today: string = new Date().toISOString().split('T')[0];
+  const { enableTimeSlot } = useClinicSetting();
+  const timeSlotEnabled: boolean = enableTimeSlot !== false;
 
   const [activeTab, setActiveTab] = useState<ReceptionistTab>('queue');
   const [doctors, setDoctors] = useState<any[]>([]);
@@ -34,17 +37,6 @@ export default function ReceptionistPage() {
   const [trackId, setTrackId] = useState('');
   const [trackResult, setTrackResult] = useState<any>(null);
   const [trackError, setTrackError] = useState('');
-  // Time Slot Enabled setting
-  const [timeSlotEnabled, setTimeSlotEnabled] = useState<boolean>(true);
-
-  useEffect(() => {
-    const checkEnabled = () => {
-      setTimeSlotEnabled(localStorage.getItem('time_slot_enabled') !== 'false');
-    };
-    checkEnabled();
-    window.addEventListener('storage', checkEnabled);
-    return () => window.removeEventListener('storage', checkEnabled);
-  }, []);
 
   const [form, setForm] = useState({
     patientName: '',

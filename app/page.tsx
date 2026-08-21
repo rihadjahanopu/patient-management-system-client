@@ -31,6 +31,7 @@ export default function HomePage() {
     publicTagline,
     publicAnnouncement,
     showPublicAnnouncement,
+    enableTimeSlot,
   } = useClinicSetting();
 
   const [doctors, setDoctors] = useState<any[]>([]);
@@ -55,17 +56,8 @@ export default function HomePage() {
   const [trackError, setTrackError] = useState('');
   const [trackLoading, setTrackLoading] = useState(false);
 
-  // Time Slot Enabled setting
-  const [timeSlotEnabled, setTimeSlotEnabled] = useState<boolean>(true);
-
-  useEffect(() => {
-    const checkEnabled = () => {
-      setTimeSlotEnabled(localStorage.getItem('time_slot_enabled') !== 'false');
-    };
-    checkEnabled();
-    window.addEventListener('storage', checkEnabled);
-    return () => window.removeEventListener('storage', checkEnabled);
-  }, []);
+  // Time Slot Enabled setting (synced from DB via useClinicSetting)
+  const timeSlotEnabled: boolean = enableTimeSlot !== false;
 
   const slots = [
     '09:00 AM - 09:30 AM',
@@ -193,45 +185,45 @@ export default function HomePage() {
     <>
       <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden selection:bg-emerald-500 selection:text-slate-950 font-sans">
         {/* ───────────────────────────────────────────────────────────── */}
-        {/* ULTRA-MODERN GLASSMOPHIC TOP NAVBAR (64px) */}
+        {/* ULTRA-MODERN GLASSMOPHIC TOP NAVBAR (FULLY MOBILE RESPONSIVE) */}
         {/* ───────────────────────────────────────────────────────────── */}
-        <header className="h-16 shrink-0 border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md px-6 flex items-center justify-between z-30">
-          <div className="flex items-center gap-3">
+        <header className="min-h-16 shrink-0 border-b border-slate-800/80 bg-slate-950/95 backdrop-blur-md px-3 sm:px-6 py-2.5 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 z-30">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {publicLogoUrl ? (
               <img
                 src={publicLogoUrl}
                 alt={publicClinicName}
-                className="w-10 h-10 rounded-xl object-cover border border-slate-800 shadow-lg shadow-emerald-500/20"
+                className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl object-cover border border-slate-800 shadow-lg shadow-emerald-500/20"
               />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                <Stethoscope className="w-5 h-5 text-white" />
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-linear-to-tr from-emerald-500 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20 shrink-0">
+                <Stethoscope className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
             )}
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-black text-lg text-white tracking-tight">
+            <div className="truncate">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="font-black text-sm sm:text-lg text-white tracking-tight truncate">
                   {publicClinicName || 'SmartCare'}
                 </span>
-                <span className="text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  Live Queue Suite
+                <span className="hidden xs:inline-flex text-[9px] sm:text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-1.5 sm:px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0">
+                  Live Queue
                 </span>
               </div>
-              <span className="text-[11px] text-slate-400 font-medium hidden sm:block">
+              <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium hidden md:block truncate">
                 {publicTagline || 'Public OPD Serial & Live Tracking Portal'}
               </span>
             </div>
           </div>
 
-          {/* Doctor Selector & Staff Navigation */}
-          <div className="flex items-center gap-4">
+          {/* Doctor Selector & Staff Navigation (Responsive Flex Controls) */}
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto sm:ml-0">
             {doctors.length > 0 && (
-              <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-xl">
-                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 px-2 sm:px-3 py-1.5 rounded-xl max-w-28 xs:max-w-40 sm:max-w-56">
+                <Building2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                 <select
                   value={selectedDoctor}
                   onChange={(e) => setSelectedDoctor(e.target.value)}
-                  className="bg-transparent text-white font-bold text-xs focus:outline-none cursor-pointer max-w-55 truncate"
+                  className="bg-transparent text-white font-bold text-[11px] sm:text-xs focus:outline-none cursor-pointer w-full truncate"
                 >
                   {doctors.map((d) => (
                     <option key={d._id} value={d._id} className="bg-slate-900 text-white">
@@ -244,40 +236,40 @@ export default function HomePage() {
 
             <button
               onClick={() => fetchQueue()}
-              className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 border border-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-800 transition-all active:scale-95"
+              className="p-1.5 sm:px-3 sm:py-2 bg-slate-900 border border-slate-800 text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-800 transition-all active:scale-95 flex items-center gap-1.5"
               title="Refresh State"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${loading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">Sync Live</span>
+              <span className="hidden md:inline">Sync Live</span>
             </button>
 
             <Link
               href="/login"
-              className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all active:scale-95"
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 sm:py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all active:scale-95 shrink-0"
             >
               <User className="w-3.5 h-3.5" />
-              <span>Staff Portal</span>
+              <span className="text-[11px] sm:text-xs font-bold">Staff Portal</span>
             </Link>
           </div>
         </header>
 
         {/* Live Public Patient Announcement Banner */}
         {showPublicAnnouncement && publicAnnouncement && (
-          <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-slate-950 px-6 py-2 flex items-center justify-between text-xs font-black shadow-md border-b border-amber-400 z-20 shrink-0 animate-fadeIn">
+          <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-slate-950 px-3 sm:px-6 py-1.5 sm:py-2 flex items-center justify-between text-xs font-black shadow-md border-b border-amber-400 z-20 shrink-0 animate-fadeIn">
             <div className="flex items-center gap-2 max-w-5xl truncate">
               <Megaphone className="w-4 h-4 text-slate-950 shrink-0 animate-bounce" />
-              <span className="truncate">{publicAnnouncement}</span>
+              <span className="truncate text-[11px] sm:text-xs">{publicAnnouncement}</span>
             </div>
-            <span className="text-[10px] bg-slate-950 text-amber-400 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold shrink-0 hidden md:inline">
+            <span className="text-[9px] sm:text-[10px] bg-slate-950 text-amber-400 px-2 py-0.5 rounded-full uppercase tracking-wider font-extrabold shrink-0 hidden md:inline">
               Announcement
             </span>
           </div>
         )}
 
         {/* ───────────────────────────────────────────────────────────── */}
-        {/* 100VH DASHBOARD WORKSPACE GRID (FITS DESKTOP VIEWPORT PERFECTLY) */}
+        {/* DASHBOARD WORKSPACE GRID (100% RESPONSIVE FOR MOBILE & DESKTOP) */}
         {/* ───────────────────────────────────────────────────────────── */}
-        <main className="flex-1 p-4 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-64px)]">
+        <main className="flex-1 p-3 sm:p-4 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-4 lg:h-[calc(100vh-64px)]">
           {/* ═════════════════════════════════════════════════════════════ */}
           {/* COLUMN 1: LIVE CHAMBER SERVING & QUICK STATS (4 COLS / 33%) */}
           {/* ═════════════════════════════════════════════════════════════ */}
