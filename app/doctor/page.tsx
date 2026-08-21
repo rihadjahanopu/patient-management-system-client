@@ -211,13 +211,14 @@ export default function DoctorPage() {
     if (rx.followUpDate) setFollowUpDate(rx.followUpDate);
 
     // Set matching patient info if available
+    const appt = typeof rx.appointment === 'object' ? rx.appointment : null;
     setActivePatient({
-      _id: rx.appointment?._id || rx.appointment,
-      patientName: rx.patientName,
-      serialNumber: rx.serialNumber || 1,
-      phone: rx.phone || '',
-      age: rx.age || '',
-      gender: rx.gender || '',
+      _id: appt?._id || rx.appointment,
+      patientName: rx.patientName || appt?.patientName || 'Patient',
+      serialNumber: rx.serialNumber || appt?.serialNumber || 1,
+      phone: rx.phone || appt?.phone || '',
+      age: rx.age || appt?.age || '',
+      gender: rx.gender || appt?.gender || '',
       status: rx.isFinalized ? 'Completed' : 'In Progress',
     });
 
@@ -401,16 +402,24 @@ export default function DoctorPage() {
   // Dynamic Prescription History Filter
   const filteredRxHistory = rxHistory.filter((rx) => {
     const q = historySearchQuery.toLowerCase().trim();
+    const appt = typeof rx.appointment === 'object' ? rx.appointment : null;
+    const patientName = rx.patientName || appt?.patientName || '';
+    const phone = rx.phone || appt?.phone || '';
+    const date = rx.date || appt?.date || (rx.createdAt ? new Date(rx.createdAt).toISOString().slice(0, 10) : '');
+    const serialNumber = rx.serialNumber || appt?.serialNumber || '';
+
     const matchesSearch =
       !q ||
-      rx.patientName?.toLowerCase().includes(q) ||
-      rx.phone?.includes(q) ||
+      patientName.toLowerCase().includes(q) ||
+      phone.includes(q) ||
       rx.diagnosis?.toLowerCase().includes(q) ||
-      rx.date?.includes(q) ||
-      String(rx.serialNumber).includes(q) ||
+      rx.chiefComplaints?.toLowerCase().includes(q) ||
+      date.includes(q) ||
+      String(serialNumber).includes(q) ||
       rx.medicines?.some(
         (m: any) =>
           m.brandName?.toLowerCase().includes(q) ||
+          m.medicineName?.toLowerCase().includes(q) ||
           m.generic?.toLowerCase().includes(q)
       );
 
@@ -1030,34 +1039,43 @@ export default function DoctorPage() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-4">
-                      {filteredRxHistory.map((rx) => (
-                        <div
-                          key={rx._id}
-                          className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 hover:border-emerald-400 hover:shadow-md transition-all space-y-3"
-                        >
-                          {/* Top Row: Patient Info + Token + Badges */}
-                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 font-black text-base flex items-center justify-center shadow-xs">
-                                #{String(rx.serialNumber || 1).padStart(2, '0')}
-                              </div>
-                              <div>
-                                <h4 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                                  {rx.patientName || 'Patient'}
-                                  {rx.patientAge && (
-                                    <span className="text-xs font-semibold text-slate-500">
-                                      ({rx.patientAge} Yrs • {rx.patientGender})
-                                    </span>
-                                  )}
-                                </h4>
-                                <p className="text-xs text-slate-500 font-mono">Phone: {rx.phone || 'N/A'}</p>
-                              </div>
-                            </div>
+                      {filteredRxHistory.map((rx) => {
+                        const appt = typeof rx.appointment === 'object' ? rx.appointment : null;
+                        const pName = rx.patientName || appt?.patientName || 'Patient';
+                        const pAge = rx.patientAge || rx.age || appt?.age;
+                        const pGender = rx.patientGender || rx.gender || appt?.gender;
+                        const pPhone = rx.phone || appt?.phone || 'N/A';
+                        const pDate = rx.date || appt?.date || (rx.createdAt ? new Date(rx.createdAt).toISOString().slice(0, 10) : 'N/A');
+                        const pSerial = rx.serialNumber || appt?.serialNumber || 1;
 
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-3 py-1 rounded-full flex items-center gap-1">
-                                <Calendar className="w-3.5 h-3.5 text-slate-400" /> {rx.date || 'N/A'}
-                              </span>
+                        return (
+                          <div
+                            key={rx._id}
+                            className="bg-slate-50/80 border border-slate-200 rounded-2xl p-5 hover:border-emerald-400 hover:shadow-md transition-all space-y-3"
+                          >
+                            {/* Top Row: Patient Info + Token + Badges */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/60 pb-3">
+                              <div className="flex items-center space-x-3">
+                                <div className="w-10 h-10 rounded-xl bg-slate-900 text-emerald-400 font-black text-base flex items-center justify-center shadow-xs">
+                                  #{String(pSerial).padStart(2, '0')}
+                                </div>
+                                <div>
+                                  <h4 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                                    {pName}
+                                    {pAge && (
+                                      <span className="text-xs font-semibold text-slate-500">
+                                        ({pAge} Yrs • {pGender || 'N/A'})
+                                      </span>
+                                    )}
+                                  </h4>
+                                  <p className="text-xs text-slate-500 font-mono">Phone: {pPhone}</p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 px-3 py-1 rounded-full flex items-center gap-1">
+                                  <Calendar className="w-3.5 h-3.5 text-slate-400" /> {pDate}
+                                </span>
 
                               {rx.isFinalized ? (
                                 <span className="text-xs font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-full flex items-center gap-1">
@@ -1118,7 +1136,8 @@ export default function DoctorPage() {
                             </button>
                           </div>
                         </div>
-                      ))}
+                      );
+                    })}
                     </div>
                   )}
                 </div>

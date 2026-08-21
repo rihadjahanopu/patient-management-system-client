@@ -9,12 +9,32 @@ interface PrintablePrescriptionProps {
   onBack?: () => void;
 }
 
+interface ExtendedPrescription extends Partial<Prescription> {
+  appointment?: {
+    patientName?: string;
+    age?: number | string;
+    gender?: string;
+    date?: string;
+    serialNumber?: number | string;
+    phone?: string;
+  } | string;
+  createdAt?: string;
+}
+
 export default function PrintablePrescription({ prescription, onBack }: PrintablePrescriptionProps) {
-  const handlePrint = () => {
+  const handlePrint = (): void => {
     if (typeof window !== 'undefined') {
       window.print();
     }
   };
+
+  const extRx: ExtendedPrescription = prescription as ExtendedPrescription;
+  const appt: ExtendedPrescription['appointment'] = typeof extRx.appointment === 'object' ? extRx.appointment : null;
+  const pName: string = prescription.patientName || (typeof appt === 'object' && appt?.patientName) || 'Patient';
+  const pAge: number | string = prescription.age || (typeof appt === 'object' && appt?.age) || '--';
+  const pGender: string = prescription.gender || (typeof appt === 'object' && appt?.gender) || 'N/A';
+  const pDate: string = prescription.date || (typeof appt === 'object' && appt?.date) || (extRx.createdAt ? new Date(extRx.createdAt).toISOString().slice(0, 10) : 'N/A');
+  const pToken: number | string = prescription.tokenNumber || (typeof appt === 'object' && appt?.serialNumber) || 1;
 
   return (
     <div className="max-w-4xl mx-auto py-6 px-4">
@@ -71,20 +91,20 @@ export default function PrintablePrescription({ prescription, onBack }: Printabl
         <div className="border-y border-slate-400 py-2.5 my-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-semibold text-slate-900 items-center">
           <div>
             <span className="text-[10px] text-slate-500 uppercase font-bold block">Patient Name</span>
-            <span className="font-extrabold text-slate-950 text-sm">{prescription.patientName}</span>
+            <span className="font-extrabold text-slate-950 text-sm">{pName}</span>
           </div>
 
           <div>
             <span className="text-[10px] text-slate-500 uppercase font-bold block">Age / Gender</span>
             <span className="text-slate-900">
-              {prescription.age} Yrs / {prescription.gender}
+              {pAge} Yrs / {pGender}
             </span>
           </div>
 
           <div>
             <span className="text-[10px] text-slate-500 uppercase font-bold block">Date & Token</span>
             <span className="text-slate-900">
-              {prescription.date} (Token #{prescription.tokenNumber})
+              {pDate} (Token #{pToken})
             </span>
           </div>
 
@@ -97,7 +117,7 @@ export default function PrintablePrescription({ prescription, onBack }: Printabl
         </div>
 
         {/* Prescription Main Body: 2 Columns */}
-        <div className="grid grid-cols-12 gap-6 min-h-[480px] mt-4">
+        <div className="grid grid-cols-12 gap-6 min-h-120 mt-4">
           {/* Left Column (Clinical Margin - 35% width) */}
           <div className="col-span-12 md:col-span-4 border-r-0 md:border-r border-slate-300 md:pr-4 space-y-5 text-xs">
             {/* O/E Vitals */}
