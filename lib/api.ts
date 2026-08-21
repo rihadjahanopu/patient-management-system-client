@@ -111,4 +111,34 @@ export const api = {
     updateClinic: (data: Record<string, any>) =>
       request('/settings/clinic', { method: 'PUT', body: JSON.stringify(data) }),
   },
+
+  // ─── Custom Medicines (Sync Engine) ──────────────────────────
+  // These hit the backend MongoDB directly (source of truth)
+  customMedicines: {
+    getAll: () => request('/medicines/custom'),
+    create: (data: {
+      brandName: string;
+      generic: string;
+      dosageForm?: string;
+      strength?: string;
+      manufacturer?: string;
+      type?: string;
+    }) => request('/medicines/custom', { method: 'POST', body: JSON.stringify(data) }),
+    remove: (brandName: string) =>
+      request('/medicines/custom', { method: 'DELETE', body: JSON.stringify({ brandName }) }),
+  },
+
+  // ─── Medical Tests Registry (Lab Investigations) ─────────────
+  medicalTests: {
+    getAll: () => request('/tests'),
+    create: (data: {
+      testName: string;
+      category?: string;
+      price?: number;
+      instructions?: string;
+    }) => request('/tests', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Record<string, any>) =>
+      request(`/tests/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    remove: (id: string) => request(`/tests/${id}`, { method: 'DELETE' }),
+  },
 };

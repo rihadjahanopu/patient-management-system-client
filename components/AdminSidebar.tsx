@@ -20,11 +20,12 @@ import {
   User as UserIcon,
   UserCheck,
   Pill,
+  FlaskConical,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useClinicSetting } from '@/hooks/useClinicSetting';
 
-export type AdminTab = 'overview' | 'approvals' | 'users' | 'doctors' | 'appointments' | 'prescriptions' | 'medicines' | 'settings' | 'profile';
+export type AdminTab = 'overview' | 'approvals' | 'users' | 'doctors' | 'appointments' | 'prescriptions' | 'medicines' | 'tests' | 'settings' | 'profile';
 
 interface AdminSidebarProps {
   activeTab: AdminTab;
@@ -57,6 +58,7 @@ export default function AdminSidebar({
     { id: 'doctors', label: 'Doctor Roster', icon: Stethoscope, badge: stats?.doctorsCount },
     { id: 'appointments', label: 'Queue & Appointments', icon: Calendar },
     { id: 'medicines', label: 'Medicine Manager', icon: Pill },
+    { id: 'tests', label: 'Lab Tests & Pricing', icon: FlaskConical },
     { id: 'prescriptions', label: 'Prescription Records', icon: FileText },
     { id: 'settings', label: 'System Settings', icon: Settings },
     { id: 'profile', label: 'Profile Settings', icon: UserIcon },

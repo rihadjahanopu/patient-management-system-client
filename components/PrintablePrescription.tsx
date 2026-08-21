@@ -156,6 +156,22 @@ export default function PrintablePrescription({ prescription, onBack }: Printabl
               </div>
             )}
 
+            {/* Investigations / Lab Tests (NO PRICES - ONLY TEST NAMES & PREP NOTES) */}
+            {prescription.labTests && prescription.labTests.length > 0 && (
+              <div>
+                <h4 className="font-bold text-slate-900 text-xs border-b border-slate-300 pb-0.5 mb-1.5 uppercase">
+                  Investigations (Lab Tests)
+                </h4>
+                <ul className="space-y-1 font-semibold text-xs text-slate-900 list-disc list-inside">
+                  {prescription.labTests.map((testItem, idx) => (
+                    <li key={idx} className="leading-tight">
+                      <span>{testItem}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {/* Adv. Doctor Advice */}
             {prescription.advice && (
               <div>

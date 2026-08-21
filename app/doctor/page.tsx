@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/typedef */
 /* eslint-disable react-hooks/set-state-in-effect */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/purity */
@@ -11,6 +10,7 @@ import { useQueueStore } from '@/hooks/useQueueStore';
 import { api } from '@/lib/api';
 import DoctorSidebar, { DoctorTab } from '@/components/DoctorSidebar';
 import ProfileSettings from '@/components/ProfileSettings';
+import MedicineManager from '@/components/MedicineManager';
 import {
   Search,
   Plus,
@@ -27,8 +27,10 @@ import {
   Users,
   Filter,
   FileText,
-  Calendar
+  Calendar,
+  FlaskConical,
 } from 'lucide-react';
+import { MedicalTest } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 
 const FREQUENCIES: string[] = ['1+0+1', '1+1+1', '1+0+0', '0+0+1', '1+1+1+1', '0+1+0', 'As needed'];
@@ -123,6 +125,22 @@ export default function DoctorPage() {
   const [advice, setAdvice] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
 
+  // Medical Tests / Lab Investigations state
+  const [selectedLabTests, setSelectedLabTests] = useState<string[]>([]);
+  const [availableMedicalTests, setAvailableMedicalTests] = useState<MedicalTest[]>([]);
+  const [testSearchInput, setTestSearchInput] = useState<string>('');
+  const [showTestDropdown, setShowTestDropdown] = useState<boolean>(false);
+
+  // Fetch available registered medical tests (from In-Memory RAM cache)
+  useEffect(() => {
+    fetch('/api/medical-tests')
+      .then((res) => res.json())
+      .then((data: { success: boolean; tests: MedicalTest[] }) => {
+        setAvailableMedicalTests(data.tests || []);
+      })
+      .catch(() => {});
+  }, []);
+
   // Medicine search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -172,6 +190,8 @@ export default function DoctorPage() {
             }));
             setMedicines(normalizedMeds);
           }
+          if (rx.labTests) setSelectedLabTests(rx.labTests);
+          else setSelectedLabTests([]);
           if (rx.advice) setAdvice(rx.advice);
           if (rx.followUpDate) setFollowUpDate(rx.followUpDate);
         } else {
@@ -179,6 +199,7 @@ export default function DoctorPage() {
           setComplaints(activePatient.reason || '');
           setDiagnosis('');
           setMedicines([]);
+          setSelectedLabTests([]);
           setAdvice('');
           setFollowUpDate('');
         }
@@ -188,6 +209,7 @@ export default function DoctorPage() {
         setComplaints(activePatient.reason || '');
         setDiagnosis('');
         setMedicines([]);
+        setSelectedLabTests([]);
         setAdvice('');
         setFollowUpDate('');
       });
@@ -209,6 +231,8 @@ export default function DoctorPage() {
     }
     if (rx.advice) setAdvice(rx.advice);
     if (rx.followUpDate) setFollowUpDate(rx.followUpDate);
+    if (rx.labTests) setSelectedLabTests(rx.labTests);
+    else setSelectedLabTests([]);
 
     // Set matching patient info if available
     const appt = typeof rx.appointment === 'object' ? rx.appointment : null;
@@ -320,6 +344,7 @@ export default function DoctorPage() {
         complaints,
         diagnosis: finalDiagnosis,
         medicines,
+        labTests: selectedLabTests,
         advice,
         followUpDate,
       };
@@ -634,6 +659,109 @@ export default function DoctorPage() {
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg font-semibold focus:outline-none focus:border-emerald-500"
                           />
                         </div>
+
+                        {/* Recommended Lab Tests / Investigations Selection */}
+                        <div className="pt-1">
+                          <label className="text-slate-700 font-extrabold flex items-center justify-between mb-1">
+                            <span className="flex items-center gap-1.5">
+                              <FlaskConical className="w-3.5 h-3.5 text-indigo-600" />
+                              Lab Tests / Investigations
+                            </span>
+                            <span className="text-[10px] text-indigo-600 font-semibold bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                              Prices Hidden on Rx
+                            </span>
+                          </label>
+
+                          <div className="relative">
+                            <div className="flex gap-1.5">
+                              <input
+                                value={testSearchInput}
+                                onChange={(e) => {
+                                  setTestSearchInput(e.target.value);
+                                  setShowTestDropdown(true);
+                                }}
+                                onFocus={() => setShowTestDropdown(true)}
+                                placeholder="Type/Select test (e.g. CBC, FBS, USG)..."
+                                className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (testSearchInput.trim()) {
+                                    if (!selectedLabTests.includes(testSearchInput.trim())) {
+                                      setSelectedLabTests([...selectedLabTests, testSearchInput.trim()]);
+                                    }
+                                    setTestSearchInput('');
+                                    setShowTestDropdown(false);
+                                  }
+                                }}
+                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg shrink-0 cursor-pointer"
+                              >
+                                + Add
+                              </button>
+                            </div>
+
+                            {/* Autocomplete Dropdown */}
+                            {showTestDropdown && availableMedicalTests.length > 0 && (
+                              <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-slate-100">
+                                {availableMedicalTests
+                                  .filter(
+                                    (t) =>
+                                      !testSearchInput.trim() ||
+                                      t.testName.toLowerCase().includes(testSearchInput.toLowerCase()) ||
+                                      t.category.toLowerCase().includes(testSearchInput.toLowerCase())
+                                  )
+                                  .map((t) => (
+                                    <div
+                                      key={t.id || t._id || t.testName}
+                                      onClick={() => {
+                                        const labelText = t.instructions
+                                          ? `${t.testName} (${t.instructions})`
+                                          : t.testName;
+                                        if (!selectedLabTests.includes(labelText)) {
+                                          setSelectedLabTests([...selectedLabTests, labelText]);
+                                        }
+                                        setTestSearchInput('');
+                                        setShowTestDropdown(false);
+                                      }}
+                                      className="p-2 hover:bg-indigo-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                                    >
+                                      <div>
+                                        <div className="font-bold text-slate-900">{t.testName}</div>
+                                        {t.instructions && (
+                                          <div className="text-[10px] text-slate-500 italic">{t.instructions}</div>
+                                        )}
+                                      </div>
+                                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                        {t.category || 'General'}
+                                      </span>
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Selected Test Chips */}
+                          {selectedLabTests.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {selectedLabTests.map((t, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-900 border border-indigo-200 font-bold text-[11px]"
+                                >
+                                  <span>{t}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedLabTests(selectedLabTests.filter((_, i) => i !== idx))}
+                                    className="text-rose-500 hover:text-rose-700 font-black ml-0.5 cursor-pointer"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                         <div>
                           <label className="text-slate-600 font-bold block mb-1">Advice</label>
                           <textarea
@@ -664,6 +792,13 @@ export default function DoctorPage() {
                             <Sparkles className="w-4 h-4 text-emerald-600" /> Trie Dictionary Search
                           </h3>
                           <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => setActiveTab('medicines')}
+                              className="text-[11px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-full flex items-center gap-1 transition-all shadow-xs cursor-pointer"
+                              title="Add custom medicine to dictionary"
+                            >
+                              <Plus className="w-3 h-3" /> + Add Custom Medicine
+                            </button>
                             {searchMeta && (
                               <span className="text-[10px] font-bold bg-slate-900 text-emerald-400 px-2 py-0.5 rounded-full font-mono">
                                 ⚡ {searchMeta.time}ms ({searchMeta.total} matches)
@@ -1145,7 +1280,12 @@ export default function DoctorPage() {
             )}
 
             {/* ════════════════════════════════════════════════════════════════ */}
-            {/* TAB 4: DOCTOR PROFILE SETTINGS */}
+            {/* TAB 4: MEDICINE REGISTRY */}
+            {/* ════════════════════════════════════════════════════════════════ */}
+            {activeTab === 'medicines' && <MedicineManager />}
+
+            {/* ════════════════════════════════════════════════════════════════ */}
+            {/* TAB 5: DOCTOR PROFILE SETTINGS */}
             {/* ════════════════════════════════════════════════════════════════ */}
             {activeTab === 'profile' && <ProfileSettings />}
           </div>

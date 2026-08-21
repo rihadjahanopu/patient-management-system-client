@@ -1,102 +1,121 @@
+/**
+ * Next.js API Route: /api/custom-medicines
+ *
+ * Sync Engine Gateway:
+ * - GET  → Returns medicines from local cache/file (fast, no DB hit)
+ *          If cache is empty → syncs from MongoDB first
+ * - POST → Saves to MongoDB (via backend), then updates local cache+file
+ * - DELETE → Deletes from MongoDB (via backend), then updates local cache+file
+ *
+ * This pattern ensures:
+ *   1. Data persists across Vercel re-deploys (stored in MongoDB)
+ *   2. Reads are fast (served from in-memory cache / JSON file)
+ *   3. Writes always go to DB first (source of truth), then cache is updated
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
+import {
+  getLocalMedicines,
+  syncFromBackend,
+  addToLocalCache,
+  removeFromLocalCache,
+  RawMedicineRecord,
+} from '@/lib/medicine-sync';
 
-type MedicineRecord = Record<string, unknown>;
+const BACKEND_URL: string = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-// Path to custom medicines file
-function getCustomMedicinesPath(): string {
-  let filePath: string = path.join(process.cwd(), 'custom-medicines.json');
-  if (!fs.existsSync(filePath)) {
-    filePath = path.join(process.cwd(), 'frontend', 'custom-medicines.json');
+// Helper to get auth token from request headers
+function getAuthToken(request: NextRequest): string | null {
+  const authHeader: string | null = request.headers.get('Authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice(7);
   }
-  return filePath;
+  // Try cookie
+  const cookieToken: string | undefined = request.cookies.get('token')?.value;
+  return cookieToken || null;
 }
 
-function readCustomMedicines(): MedicineRecord[] {
-  try {
-    const filePath: string = getCustomMedicinesPath();
-    if (!fs.existsSync(filePath)) return [];
-    const content: string = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(content) as MedicineRecord[];
-  } catch {
-    return [];
-  }
-}
-
-function writeCustomMedicines(data: MedicineRecord[]): void {
-  const filePath: string = getCustomMedicinesPath();
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-// GET — list all custom medicines
+// ─── GET — List all custom medicines (from cache/file, fallback to DB sync) ──
 export async function GET() {
-  const medicines: MedicineRecord[] = readCustomMedicines();
-  return NextResponse.json({ success: true, medicines });
+  try {
+    const medicines: RawMedicineRecord[] = await getLocalMedicines();
+    return NextResponse.json({ success: true, medicines });
+  } catch {
+    return NextResponse.json(
+      { success: false, message: 'Failed to load custom medicines.' },
+      { status: 500 }
+    );
+  }
 }
 
-// POST — add a new custom medicine
+// ─── POST — Add new custom medicine (DB first, then local cache) ───────────
 export async function POST(request: NextRequest) {
   try {
+    const token: string | null = getAuthToken(request);
+
     const body: {
       brandName: string;
       generic: string;
-      dosageForm: string;
-      strength: string;
-      manufacturer: string;
-      type: string;
-    } = await request.json() as {
+      dosageForm?: string;
+      strength?: string;
+      manufacturer?: string;
+      type?: string;
+    } = (await request.json()) as {
       brandName: string;
       generic: string;
-      dosageForm: string;
-      strength: string;
-      manufacturer: string;
-      type: string;
+      dosageForm?: string;
+      strength?: string;
+      manufacturer?: string;
+      type?: string;
     };
 
-    if (!body.brandName || !body.generic) {
+    if (!body.brandName?.trim() || !body.generic?.trim()) {
       return NextResponse.json(
         { success: false, message: 'Brand name and generic name are required.' },
         { status: 400 }
       );
     }
 
-    const existing: MedicineRecord[] = readCustomMedicines();
+    // ── Step 1: Save to MongoDB via backend API ───────────────────────────
+    const backendRes: Response = await fetch(`${BACKEND_URL}/medicines/custom`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+    });
 
-    // Check for duplicate brand name
-    const duplicate: MedicineRecord | undefined = existing.find(
-      (m) => String(m['brand name'] ?? '').toLowerCase() === body.brandName.toLowerCase()
-    );
-    if (duplicate) {
+    const backendData: {
+      success: boolean;
+      message: string;
+      medicine?: Record<string, unknown>;
+    } = (await backendRes.json()) as {
+      success: boolean;
+      message: string;
+      medicine?: Record<string, unknown>;
+    };
+
+    if (!backendRes.ok) {
       return NextResponse.json(
-        { success: false, message: `"${body.brandName}" already exists in the custom medicine list.` },
-        { status: 409 }
+        { success: false, message: backendData.message },
+        { status: backendRes.status }
       );
     }
 
-    const newEntry: MedicineRecord = {
-      'brand id': Date.now(),
-      'brand name': body.brandName.trim(),
-      'type': body.type || 'allopathic',
-      'slug': body.brandName.toLowerCase().replace(/\s+/g, '-'),
-      'dosage form': body.dosageForm || '',
-      'generic': body.generic.trim(),
-      'strength': body.strength || '',
-      'manufacturer': body.manufacturer || '',
-      'package container': '',
-      'Package Size': '',
-      'is_custom': true,
-    };
-
-    existing.push(newEntry);
-    writeCustomMedicines(existing);
+    // ── Step 2: Update local cache + JSON file ────────────────────────────
+    if (backendData.medicine) {
+      addToLocalCache(backendData.medicine);
+    }
 
     return NextResponse.json({
       success: true,
-      message: `"${body.brandName}" has been added to the medicine list successfully.`,
-      medicine: newEntry,
+      message: backendData.message,
+      medicine: backendData.medicine,
     });
-  } catch {
+  } catch (err) {
+    console.error('[/api/custom-medicines POST]', err);
     return NextResponse.json(
       { success: false, message: 'Failed to add medicine. Please try again.' },
       { status: 500 }
@@ -104,33 +123,68 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE — remove a custom medicine by brand name
+// ─── DELETE — Remove custom medicine (DB first, then local cache) ──────────
 export async function DELETE(request: NextRequest) {
   try {
-    const body: { brandName: string } = await request.json() as { brandName: string };
+    const token: string | null = getAuthToken(request);
+
+    const body: { brandName: string } = (await request.json()) as { brandName: string };
 
     if (!body.brandName) {
-      return NextResponse.json({ success: false, message: 'Brand name is required.' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, message: 'Brand name is required.' },
+        { status: 400 }
+      );
     }
 
-    const existing: MedicineRecord[] = readCustomMedicines();
-    const filtered: MedicineRecord[] = existing.filter(
-      (m) => String(m['brand name'] ?? '').toLowerCase() !== body.brandName.toLowerCase()
+    // ── Step 1: Delete from MongoDB via backend API ───────────────────────
+    const backendRes: Response = await fetch(`${BACKEND_URL}/medicines/custom`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ brandName: body.brandName }),
+      cache: 'no-store',
+    });
+
+    const backendData: { success: boolean; message: string } = (await backendRes.json()) as {
+      success: boolean;
+      message: string;
+    };
+
+    if (!backendRes.ok) {
+      return NextResponse.json(
+        { success: false, message: backendData.message },
+        { status: backendRes.status }
+      );
+    }
+
+    // ── Step 2: Remove from local cache + JSON file ───────────────────────
+    removeFromLocalCache(body.brandName);
+
+    return NextResponse.json({ success: true, message: backendData.message });
+  } catch (err) {
+    console.error('[/api/custom-medicines DELETE]', err);
+    return NextResponse.json(
+      { success: false, message: 'Failed to remove medicine.' },
+      { status: 500 }
     );
+  }
+}
 
-    if (filtered.length === existing.length) {
-      return NextResponse.json({ success: false, message: 'Medicine not found.' }, { status: 404 });
-    }
-
-    writeCustomMedicines(filtered);
-
+// ─── PUT — Force sync from DB (useful after deploy / cache refresh) ──────
+export async function PUT() {
+  try {
+    const medicines: RawMedicineRecord[] = await syncFromBackend();
     return NextResponse.json({
       success: true,
-      message: `"${body.brandName}" removed from custom list.`,
+      message: `Synced ${medicines.length} medicines from database.`,
+      medicines,
     });
   } catch {
     return NextResponse.json(
-      { success: false, message: 'Failed to remove medicine.' },
+      { success: false, message: 'Sync from database failed.' },
       { status: 500 }
     );
   }

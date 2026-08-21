@@ -4,6 +4,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Cookies from 'js-cookie';
 import {
   PlusCircle,
   Trash2,
@@ -13,6 +14,8 @@ import {
   AlertCircle,
   FlaskConical,
   X,
+  RefreshCw,
+  Database,
 } from 'lucide-react';
 
 interface CustomMedicine {
@@ -53,6 +56,7 @@ export default function MedicineManager() {
   const [medicines, setMedicines] = useState<CustomMedicine[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
+  const [syncing, setSyncing] = useState<boolean>(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [success, setSuccess] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -61,6 +65,15 @@ export default function MedicineManager() {
   const strengthString: string = form.strengthValue ? `${form.strengthValue} ${form.strengthUnit}` : '';
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showForm, setShowForm] = useState<boolean>(false);
+
+  // Helper: get auth token for forwarding to API route
+  const getAuthHeaders = useCallback((): HeadersInit => {
+    const token = Cookies.get('token') || localStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  }, []);
 
   const loadMedicines = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -75,14 +88,33 @@ export default function MedicineManager() {
     }
   }, []);
 
+  const showMsg = useCallback((type: 'success' | 'error', msg: string): void => {
+    if (type === 'success') { setSuccess(msg); setTimeout(() => setSuccess(''), 4000); }
+    else { setError(msg); setTimeout(() => setError(''), 5000); }
+  }, []);
+
+  // Force re-sync from MongoDB (useful after deploy)
+  const handleForceSync = useCallback(async (): Promise<void> => {
+    setSyncing(true);
+    try {
+      const res: Response = await fetch('/api/custom-medicines', { method: 'PUT' });
+      const data: { success: boolean; message: string; medicines: CustomMedicine[] } = await res.json();
+      if (res.ok) {
+        setMedicines(data.medicines || []);
+        showMsg('success', `✅ ${data.message}`);
+      } else {
+        showMsg('error', data.message || 'Sync failed.');
+      }
+    } catch {
+      showMsg('error', 'Failed to sync from database.');
+    } finally {
+      setSyncing(false);
+    }
+  }, [showMsg]);
+
   useEffect(() => {
     void loadMedicines();
   }, [loadMedicines]);
-
-  const showMsg = (type: 'success' | 'error', msg: string): void => {
-    if (type === 'success') { setSuccess(msg); setTimeout(() => setSuccess(''), 4000); }
-    else { setError(msg); setTimeout(() => setError(''), 5000); }
-  };
 
   const handleAdd = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
@@ -94,7 +126,7 @@ export default function MedicineManager() {
     try {
       const res: Response = await fetch('/api/custom-medicines', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ ...form, strength: strengthString }),
       });
       const data: { success: boolean; message: string } = await res.json();
@@ -116,7 +148,7 @@ export default function MedicineManager() {
     try {
       const res: Response = await fetch('/api/custom-medicines', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ brandName }),
       });
       const data: { success: boolean; message: string } = await res.json();
@@ -143,7 +175,7 @@ export default function MedicineManager() {
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="bg-linear-to-br from-slate-900 via-emerald-950 to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl border border-slate-700 relative overflow-hidden">
+    <div className="bg-linear-to-br from-slate-900 via-emerald-950 to-slate-900 rounded-3xl p-6 md:p-8 text-white shadow-xl border border-slate-700 relative overflow-hidden">
         <div className="absolute -top-12 -right-12 w-52 h-52 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="space-y-2 text-center md:text-left">
@@ -158,13 +190,31 @@ export default function MedicineManager() {
               Add custom brand medicines to the prescription search dictionary. Custom medicines appear
               first in auto-complete suggestions for all doctors.
             </p>
+            {/* DB Sync badge */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-300 text-[10px] font-bold border border-sky-500/25">
+              <Database className="w-3 h-3" />
+              MongoDB Sync — Data persists across deploys
+            </div>
           </div>
-          <div className="bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-emerald-500/20 text-center shrink-0 min-w-36">
-            <div className="text-3xl font-black text-emerald-400">{medicines.length}</div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Custom Added</div>
+          <div className="flex flex-col items-center gap-3 shrink-0">
+            <div className="bg-black/40 backdrop-blur-md p-4 rounded-2xl border border-emerald-500/20 text-center min-w-36">
+              <div className="text-3xl font-black text-emerald-400">{medicines.length}</div>
+              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Custom Added</div>
+            </div>
+            {/* Force Sync Button */}
+            <button
+              onClick={() => { void handleForceSync(); }}
+              disabled={syncing}
+              title="Force sync from MongoDB database"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 border border-sky-500/30 text-sky-300 text-xs font-bold transition-all disabled:opacity-60 w-full justify-center"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing...' : 'Sync from DB'}
+            </button>
           </div>
         </div>
       </div>
+
 
       {/* Alerts */}
       {success && (
@@ -436,8 +486,10 @@ export default function MedicineManager() {
       {/* Info Note */}
       <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4 text-xs text-sky-800 font-medium flex items-start gap-3">
         <div className="w-5 h-5 rounded-full bg-sky-200 text-sky-700 flex items-center justify-center shrink-0 font-black text-xs mt-0.5">ℹ</div>
-        <div>
-          <strong>How it works:</strong> Custom medicines are saved in <code className="px-1.5 py-0.5 rounded bg-sky-100 border border-sky-200 font-mono text-[11px]">custom-medicines.json</code> and merged with the main medicine dictionary automatically. They appear first in prescription auto-complete search for all doctors.
+        <div className="space-y-1.5">
+          <div><strong>Sync Engine:</strong> Custom medicines are saved to <strong>MongoDB</strong> (source of truth) first, then stored in <code className="px-1.5 py-0.5 rounded bg-sky-100 border border-sky-200 font-mono text-[11px]">In-Memory Cache (RAM)</code> for fast access.</div>
+          <div className="text-sky-700">✅ Data <strong>persists across Vercel re-deploys</strong> — new deploy হলে MongoDB থেকে auto-sync হবে।</div>
+          <div className="text-sky-700">⚡ Medicine search সবসময় In-Memory Cache (RAM) থেকে পড়ে — <strong>কোনো DB cost নেই।</strong></div>
         </div>
       </div>
     </div>

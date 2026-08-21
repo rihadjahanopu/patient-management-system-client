@@ -57,6 +57,16 @@ export interface PrescribedMedicine {
   instructions?: string;
 }
 
+export interface MedicalTest {
+  id?: string;
+  _id?: string;
+  testName: string;
+  category: string;
+  price: number;
+  instructions?: string;
+  isActive?: boolean;
+}
+
 export interface Prescription {
   id: string;
   appointmentId: string;
@@ -74,6 +84,7 @@ export interface Prescription {
   clinicalNotes: string;
   diagnosis: string;
   medicines: PrescribedMedicine[];
+  labTests?: string[];
   advice: string;
   followUpDate: string;
 }

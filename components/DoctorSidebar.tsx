@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/typedef */
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
@@ -13,11 +13,12 @@ import {
   X,
   RefreshCw,
   User as UserIcon,
+  Pill,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useClinicSetting } from '@/hooks/useClinicSetting';
 
-export type DoctorTab = 'consultation' | 'queue' | 'history' | 'profile';
+export type DoctorTab = 'consultation' | 'queue' | 'history' | 'profile' | 'medicines';
 
 interface DoctorSidebarProps {
   activeTab: DoctorTab;
@@ -50,6 +51,7 @@ export default function DoctorSidebar({
     { id: 'consultation', label: 'Rx Consultation Suite', icon: Stethoscope },
     { id: 'queue', label: 'Today Patient Queue', icon: Users, badge: queueCount },
     { id: 'history', label: 'Prescription Archive', icon: History },
+    { id: 'medicines', label: 'Medicine Registry', icon: Pill },
     { id: 'profile', label: 'Doctor Profile Settings', icon: UserIcon },
   ];
 
@@ -73,7 +75,7 @@ export default function DoctorSidebar({
             {logoUrl ? (
               <img src={logoUrl} alt={clinicName} className="w-10 h-10 rounded-xl object-cover shrink-0 border border-slate-700 shadow-md" />
             ) : (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20 shrink-0 font-black">
+              <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20 shrink-0 font-black">
                 <Stethoscope className="w-6 h-6" />
               </div>
             )}
@@ -102,7 +104,7 @@ export default function DoctorSidebar({
 
         {/* Doctor Profile Card */}
         <div className={`m-3 p-3 rounded-xl bg-slate-800/60 border border-slate-700/50 flex items-center gap-3 ${collapsed && !isMobile ? 'p-2 justify-center' : ''}`}>
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-slate-950 font-black text-sm shadow-md shrink-0">
+          <div className="w-9 h-9 rounded-full bg-linear-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-slate-950 font-black text-sm shadow-md shrink-0">
             {doctorName ? doctorName.charAt(0).toUpperCase() : user?.name ? user.name.charAt(0).toUpperCase() : 'D'}
           </div>
           {(!collapsed || isMobile) && (
@@ -138,8 +140,8 @@ export default function DoctorSidebar({
           </div>
 
           {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
+            const Icon: React.ElementType = item.icon;
+            const isActive: boolean = activeTab === item.id;
             return (
               <button
                 key={item.id}

@@ -11,6 +11,7 @@ import ProfileSettings from '@/components/ProfileSettings';
 import MedicineManager from '@/components/MedicineManager';
 import ClinicBrandingSettings from '@/components/ClinicBrandingSettings';
 import PublicHomePageSettings from '@/components/PublicHomePageSettings';
+import MedicalTestManager from '@/components/MedicalTestManager';
 import {
   Users,
   UserPlus,
@@ -1096,6 +1097,13 @@ export default function AdminPage() {
           {/* ════════════════════════════════════════════════════════════════ */}
           {activeTab === 'medicines' && (
             <MedicineManager />
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {/* TAB: MEDICAL TEST MANAGER */}
+          {/* ════════════════════════════════════════════════════════════════ */}
+          {activeTab === 'tests' && (
+            <MedicalTestManager />
           )}
 
           {/* ════════════════════════════════════════════════════════════════ */}

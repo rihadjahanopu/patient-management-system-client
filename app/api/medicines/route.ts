@@ -3,20 +3,28 @@ import fs from 'fs';
 import path from 'path';
 import { RawMedicine, Medicine } from '@/lib/types';
 import { MedicineDictionary } from '@/lib/dictionary-search';
+import { getLocalMedicines, RawMedicineRecord } from '@/lib/medicine-sync';
 
-let cachedMedicines: Medicine[] | null = null;
 let dictionaryInstance: MedicineDictionary | null = null;
+let dictionaryBuiltAt: number = 0;
+const DICTIONARY_TTL_MS: number = 5 * 60 * 1000; // 5 minutes
 
-function getDictionary(): MedicineDictionary {
-  // Always rebuild to include newly added custom medicines
+async function getDictionary(): Promise<MedicineDictionary> {
+  const now: number = Date.now();
+
+  // Rebuild dictionary if stale or missing
+  if (dictionaryInstance && now - dictionaryBuiltAt < DICTIONARY_TTL_MS) {
+    return dictionaryInstance;
+  }
+
   try {
+    // ── Step 1: Load main medicine.json (7.8MB, bundled with app) ────────
     let filePath: string = path.join(process.cwd(), 'medicine.json');
     if (!fs.existsSync(filePath)) {
       filePath = path.join(process.cwd(), 'frontend', 'medicine.json');
     }
 
     let rawData: RawMedicine[] = [];
-
     if (fs.existsSync(filePath)) {
       const fileContent: string = fs.readFileSync(filePath, 'utf-8');
       rawData = JSON.parse(fileContent) as RawMedicine[];
@@ -24,18 +32,19 @@ function getDictionary(): MedicineDictionary {
       console.warn('⚠️ medicine.json not found at', filePath);
     }
 
-    // Merge custom medicines
-    let customFilePath: string = path.join(process.cwd(), 'custom-medicines.json');
-    if (!fs.existsSync(customFilePath)) {
-      customFilePath = path.join(process.cwd(), 'frontend', 'custom-medicines.json');
-    }
-    if (fs.existsSync(customFilePath)) {
-      const customContent: string = fs.readFileSync(customFilePath, 'utf-8');
-      const customData: RawMedicine[] = JSON.parse(customContent) as RawMedicine[];
-      rawData = [...customData, ...rawData]; // custom medicines appear first
-    }
+    // ── Step 2: Load custom medicines from sync engine ────────────────────
+    // getLocalMedicines() handles both environments:
+    //   Local dev  → reads custom-medicines.json file (written by writeFileSync)
+    //   Vercel     → reads in-memory cache (synced from MongoDB on first request)
+    // Either way, custom medicines come from the correct source automatically.
+    const customMedicines: RawMedicineRecord[] = await getLocalMedicines();
 
-    cachedMedicines = rawData.map((item, index) => ({
+    // ── Step 3: Merge — custom medicines appear first in search results ───
+    const customAsRaw: RawMedicine[] = customMedicines as unknown as RawMedicine[];
+    const merged: RawMedicine[] = [...customAsRaw, ...rawData];
+
+    // ── Step 4: Normalize to Medicine type ───────────────────────────────
+    const normalized: Medicine[] = merged.map((item: RawMedicine, index: number) => ({
       id: item['brand id'] || index + 1,
       brandName: item['brand name'] || '',
       type: item['type'] || 'allopathic',
@@ -45,10 +54,11 @@ function getDictionary(): MedicineDictionary {
       manufacturer: item['manufacturer'] || '',
     }));
 
-    dictionaryInstance = new MedicineDictionary(cachedMedicines);
+    dictionaryInstance = new MedicineDictionary(normalized);
+    dictionaryBuiltAt = now;
     return dictionaryInstance;
   } catch (error) {
-    console.error('Failed to load medicine.json or build Trie Dictionary:', error);
+    console.error('Failed to build medicine dictionary:', error);
     return new MedicineDictionary([]);
   }
 }
@@ -62,9 +72,8 @@ export async function GET(request: NextRequest) {
   }
 
   const startTime: number = Date.now();
-  const dictionary: MedicineDictionary = getDictionary();
+  const dictionary: MedicineDictionary = await getDictionary();
 
-  // Execute Dictionary Trie Search Algorithm
   const results: Medicine[] = dictionary.search(query, 25);
   const executionTimeMs: number = Date.now() - startTime;
 
