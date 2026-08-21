@@ -59,7 +59,7 @@ export default function DoctorPage() {
   const [doctorProfile, setDoctorProfile] = useState<any>(null);
   const [activePatient, setActivePatient] = useState<any>(null);
 
-  const { queue, setDoctorAndDate, fetchQueue, updateAppointmentStatus } = useQueueStore();
+  const { queue, setDoctorAndDate, fetchQueue, updateAppointmentStatus, startPolling, stopPolling } = useQueueStore();
 
   // Prescription History Dynamic State
   const [rxHistory, setRxHistory] = useState<any[]>([]);
@@ -97,8 +97,12 @@ export default function DoctorPage() {
     if (doctorProfile?._id) {
       setDoctorAndDate(doctorProfile._id, today);
       loadRxHistory();
+      startPolling(10_000); // auto-refresh queue every 10s
     }
-  }, [doctorProfile, today, setDoctorAndDate, loadRxHistory]);
+    return () => {
+      stopPolling();
+    };
+  }, [doctorProfile, today, setDoctorAndDate, loadRxHistory, startPolling, stopPolling]);
 
   useEffect(() => {
     if (activeTab === 'history') {

@@ -15,6 +15,10 @@ export interface ClinicSettingData {
   publicAnnouncement?: string;
   showPublicAnnouncement?: boolean;
   enableTimeSlot?: boolean;
+  chamberStartTime?: string;
+  chamberEndTime?: string;
+  offDays?: string[];
+  bookingEnabled?: boolean;
 }
 
 const DEFAULT_SETTING: ClinicSettingData = {
@@ -27,6 +31,10 @@ const DEFAULT_SETTING: ClinicSettingData = {
   publicAnnouncement: '',
   showPublicAnnouncement: false,
   enableTimeSlot: true,
+  chamberStartTime: '09:00',
+  chamberEndTime: '21:00',
+  offDays: [],
+  bookingEnabled: true,
 };
 
 const CACHE_KEY: string = 'clinic_setting_cache';
@@ -50,6 +58,10 @@ export function useClinicSetting() {
           publicAnnouncement: res.setting.publicAnnouncement || '',
           showPublicAnnouncement: Boolean(res.setting.showPublicAnnouncement),
           enableTimeSlot: res.setting.enableTimeSlot !== false,
+          chamberStartTime: res.setting.chamberStartTime || '09:00',
+          chamberEndTime: res.setting.chamberEndTime || '21:00',
+          offDays: Array.isArray(res.setting.offDays) ? res.setting.offDays : [],
+          bookingEnabled: res.setting.bookingEnabled !== false,
         };
         setSetting(fresh);
         if (typeof window !== 'undefined') {
@@ -91,5 +103,9 @@ export function useClinicSetting() {
     publicAnnouncement: setting.publicAnnouncement || '',
     showPublicAnnouncement: Boolean(setting.showPublicAnnouncement),
     enableTimeSlot: setting.enableTimeSlot !== false,
+    chamberStartTime: setting.chamberStartTime || '09:00',
+    chamberEndTime: setting.chamberEndTime || '21:00',
+    offDays: Array.isArray(setting.offDays) ? setting.offDays : [],
+    bookingEnabled: setting.bookingEnabled !== false,
   };
 }

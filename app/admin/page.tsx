@@ -12,6 +12,8 @@ import MedicineManager from '@/components/MedicineManager';
 import ClinicBrandingSettings from '@/components/ClinicBrandingSettings';
 import PublicHomePageSettings from '@/components/PublicHomePageSettings';
 import MedicalTestManager from '@/components/MedicalTestManager';
+import ChamberScheduleSettings from '@/components/ChamberScheduleSettings';
+import DoctorScheduleCard from '@/components/DoctorScheduleCard';
 import {
   Users,
   UserPlus,
@@ -991,87 +993,9 @@ export default function AdminPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {doctors.map((doc) => {
-                    const docUser = doc.user;
-                    const isDocActive = docUser?.isActive !== false;
-                    const userId = typeof docUser === 'object' ? docUser?._id : docUser;
-
-                    return (
-                      <div
-                        key={doc._id}
-                        className={`bg-white rounded-2xl border p-5 shadow-xs space-y-4 transition-colors ${
-                          isDocActive ? 'border-slate-200 hover:border-emerald-300' : 'border-rose-200 bg-rose-50/20'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-base shadow-md ${
-                              isDocActive ? 'bg-linear-to-tr from-emerald-500 to-teal-400' : 'bg-slate-400'
-                            }`}>
-                              <Stethoscope className="w-6 h-6" />
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-sm text-slate-900">{doc.user?.name || 'Dr. Medical'}</h4>
-                              <span className="inline-block text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full mt-0.5">
-                                {doc.speciality}
-                              </span>
-                            </div>
-                          </div>
-
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
-                              isDocActive
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                : 'bg-rose-50 text-rose-700 border-rose-200'
-                            }`}
-                          >
-                            {isDocActive ? 'Active' : 'Blocked'}
-                          </span>
-                        </div>
-
-                        <div className="space-y-1.5 text-xs text-slate-600 pt-2 border-t border-slate-100">
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400 font-medium">Qualifications:</span>
-                            <span className="font-semibold text-slate-800">{doc.qualifications}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400 font-medium">BMDC Reg No:</span>
-                            <span className="font-mono font-bold text-slate-800">{doc.bmdcRegNo}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400 font-medium">Room:</span>
-                            <span className="font-bold text-slate-800">{doc.roomNumber || 'Room 01'}</span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400 font-medium">Visiting Hours:</span>
-                            <span className="font-semibold text-slate-700">
-                              {doc.visitingHours?.startTime} - {doc.visitingHours?.endTime}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-slate-400 font-medium">Daily Limit:</span>
-                            <span className="font-bold text-emerald-700">{doc.maxDailyPatients} Patients/Day</span>
-                          </div>
-                        </div>
-
-                        {userId && (
-                          <div className="pt-3 border-t border-slate-100 flex justify-end">
-                            <button
-                              onClick={() => handleToggle(userId)}
-                              className={`w-full py-2 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 ${
-                                isDocActive
-                                  ? 'bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200'
-                                  : 'bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white border border-emerald-200'
-                              }`}
-                            >
-                              <Power className="w-3.5 h-3.5" />
-                              {isDocActive ? 'Block Doctor Account' : 'Unblock Doctor Account'}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {doctors.map((doc) => (
+                    <DoctorScheduleCard key={doc._id} doc={doc} onUpdate={loadData} />
+                  ))}
                 </div>
               )}
             </div>
@@ -1314,6 +1238,9 @@ export default function AdminPage() {
             <div className="space-y-6">
               {/* Clinic Branding Settings (Name & Logo Edit with Fallback) */}
               <ClinicBrandingSettings />
+
+              {/* Chamber Hours, Off Days & Holiday Control Settings */}
+              <ChamberScheduleSettings />
 
               {/* Public Home Page Branding & Notice Banner Settings */}
               <PublicHomePageSettings />

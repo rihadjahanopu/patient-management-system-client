@@ -21,6 +21,7 @@ import {
   Download,
   Building2,
   Megaphone,
+  ChevronRight,
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -32,10 +33,34 @@ export default function HomePage() {
     publicAnnouncement,
     showPublicAnnouncement,
     enableTimeSlot,
+    chamberStartTime,
+    chamberEndTime,
+    offDays,
+    bookingEnabled,
   } = useClinicSetting();
 
   const [doctors, setDoctors] = useState<any[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState<string>('');
+
+  // Check Chamber Schedule & Off-Days
+  const currentDayName: string = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  const isOffDay: boolean = Array.isArray(offDays) && offDays.includes(currentDayName);
+
+  const isWithinChamberHours: boolean = (() => {
+    if (!chamberStartTime || !chamberEndTime) return true;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const [startH, startM] = chamberStartTime.split(':').map(Number);
+    const [endH, endM] = chamberEndTime.split(':').map(Number);
+
+    const startMinutes = (startH || 9) * 60 + (startM || 0);
+    const endMinutes = (endH || 21) * 60 + (endM || 0);
+
+    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  })();
+
+  const isBookingAllowed: boolean = bookingEnabled !== false && !isOffDay && isWithinChamberHours;
 
   // Booking Form State
   const [bookingForm, setBookingForm] = useState({
@@ -75,7 +100,9 @@ export default function HomePage() {
       .then((data) => {
         if (data.doctors && data.doctors.length > 0) {
           setDoctors(data.doctors);
-          setSelectedDoctor(data.doctors[0]._id);
+          if (data.doctors.length === 1) {
+            setSelectedDoctor(data.doctors[0]._id);
+          }
         }
       })
       .catch((err) => console.warn('Could not fetch doctors:', err));
@@ -93,14 +120,20 @@ export default function HomePage() {
     setDoctorAndDate,
     fetchQueue,
     bookAppointment,
+    startPolling,
+    stopPolling,
   } = useQueueStore();
 
-  // Sync selected doctor with Zustand store
+  // Sync selected doctor with Zustand store + start realtime polling
   useEffect(() => {
     if (selectedDoctor) {
       setDoctorAndDate(selectedDoctor, today);
+      startPolling(10_000); // auto-refresh every 10s across all devices
     }
-  }, [selectedDoctor, today, setDoctorAndDate]);
+    return () => {
+      stopPolling();
+    };
+  }, [selectedDoctor, today, setDoctorAndDate, startPolling, stopPolling]);
 
   // Handle Serial Booking submission via Zustand
   const handleBookSerial = async (e: React.FormEvent) => {
@@ -155,6 +188,44 @@ export default function HomePage() {
   };
 
   const selectedDoctorInfo = doctors.find((d) => d._id === selectedDoctor);
+
+  // Check Doctor-Specific Pause State (handles 2h, 4h, today, indefinite duration)
+  const isDocPaused: boolean = (() => {
+    if (!selectedDoctorInfo) return false;
+    if (!selectedDoctorInfo.isBookingPaused) return false;
+    if (!selectedDoctorInfo.pausedUntil) return true; // paused indefinitely
+    return new Date() < new Date(selectedDoctorInfo.pausedUntil);
+  })();
+
+  const docPauseUntilText: string = (() => {
+    if (!selectedDoctorInfo?.pausedUntil) return 'Paused by Admin';
+    const until = new Date(selectedDoctorInfo.pausedUntil);
+    return `Paused until ${until.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  })();
+
+  // Check Doctor-Specific Off-Days
+  const isDocOffDay: boolean = (() => {
+    if (!selectedDoctorInfo?.offDays || !Array.isArray(selectedDoctorInfo.offDays)) return false;
+    return selectedDoctorInfo.offDays.includes(currentDayName);
+  })();
+
+  // Check Doctor-Specific Booking Hours (e.g. 08:00 AM - 12:00 PM)
+  const isDocWithinHours: boolean = (() => {
+    if (!selectedDoctorInfo?.bookingStartTime || !selectedDoctorInfo?.bookingEndTime) return true;
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    const [startH, startM] = selectedDoctorInfo.bookingStartTime.split(':').map(Number);
+    const [endH, endM] = selectedDoctorInfo.bookingEndTime.split(':').map(Number);
+
+    const startMinutes = (startH || 8) * 60 + (startM || 0);
+    const endMinutes = (endH || 20) * 60 + (endM || 0);
+
+    return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+  })();
+
+  const isFinalBookingAllowed: boolean =
+    isBookingAllowed && !isDocPaused && !isDocOffDay && isDocWithinHours;
 
   // Ref for ticket card element
   const ticketRef = useRef<HTMLDivElement>(null);
@@ -271,39 +342,36 @@ export default function HomePage() {
         {/* ───────────────────────────────────────────────────────────── */}
         <main className="flex-1 p-3 sm:p-4 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12 gap-4 lg:h-[calc(100vh-64px)]">
           {/* ═════════════════════════════════════════════════════════════ */}
-          {/* COLUMN 1: LIVE CHAMBER SERVING & QUICK STATS (4 COLS / 33%) */}
+          {/* COLUMN 1: LIVE CHAMBER STATS + QUICK CHIPS (Mobile-first)   */}
           {/* ═════════════════════════════════════════════════════════════ */}
-          <div className="lg:col-span-4 flex flex-col gap-4 min-h-0">
-            {/* Quick Stat Chips Grid — Above Inside Chamber Now */}
-            <div className="grid grid-cols-3 gap-3 shrink-0">
-              <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+          <div className="lg:col-span-4 flex flex-col gap-3 min-h-0">
+            {/* Quick Stat Chips — compact horizontal row on mobile */}
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-2xl text-center">
+                <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Next Up
                 </span>
-                <div className="text-2xl font-black text-amber-400 mt-1">
+                <div className="text-xl sm:text-2xl font-black text-amber-400 mt-0.5">
                   {nextSerial ? `#${String(nextSerial).padStart(2, '0')}` : '--'}
                 </div>
               </div>
-
-              <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-2xl text-center">
+                <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                   Waiting
                 </span>
-                <div className="text-2xl font-black text-slate-200 mt-1">{waitingCount}</div>
+                <div className="text-xl sm:text-2xl font-black text-slate-200 mt-0.5">{waitingCount}</div>
               </div>
-
-              <div className="bg-slate-900/90 border border-slate-800 p-4 rounded-2xl text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Completed
+              <div className="bg-slate-900/90 border border-slate-800 p-3 rounded-2xl text-center">
+                <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Done
                 </span>
-                <div className="text-2xl font-black text-emerald-400 mt-1">{completedCount}</div>
+                <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5">{completedCount}</div>
               </div>
             </div>
 
-            {/* Currently Serving Hero Card */}
-            <div className="bg-linear-to-br from-emerald-950/90 via-slate-900 to-teal-950/90 border border-emerald-600/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden flex-1 flex flex-col justify-between">
+            {/* Currently Serving Hero Card — hidden on mobile (saves space), full on desktop */}
+            <div className="hidden lg:flex bg-linear-to-br from-emerald-950/90 via-slate-900 to-teal-950/90 border border-emerald-600/50 rounded-3xl p-6 shadow-2xl relative overflow-hidden flex-1 flex-col justify-between">
               <div className="absolute -right-8 -top-8 w-40 h-40 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
-
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-emerald-400 text-xs font-extrabold uppercase tracking-widest flex items-center gap-2">
@@ -312,11 +380,10 @@ export default function HomePage() {
                   </span>
                   <span className="text-[11px] font-mono text-slate-400">Date: {today}</span>
                 </div>
-
                 <div className="my-4">
                   <div className="text-6xl lg:text-7xl font-black text-white tracking-tight flex items-baseline gap-2">
                     {currentServingSerial ? (
-                      `#${String(currentServingSerial).padStart(2, '0')}`
+                      `#${String(currentServingSerial).padStart(2, '00')}`
                     ) : (
                       <span className="text-slate-700">--</span>
                     )}
@@ -330,7 +397,6 @@ export default function HomePage() {
                   )}
                 </div>
               </div>
-
               <div className="pt-4 border-t border-emerald-900/60 flex items-center justify-between text-xs text-slate-400">
                 <span className="font-semibold text-slate-300">
                   {selectedDoctorInfo?.user?.name || 'Selected Doctor'}
@@ -338,6 +404,21 @@ export default function HomePage() {
                 <span className="text-emerald-400 font-mono text-[11px] font-bold">
                   {selectedDoctorInfo?.roomNumber || 'Chamber 01'}
                 </span>
+              </div>
+            </div>
+
+            {/* Mobile-only: slim currently serving bar */}
+            <div className="flex lg:hidden items-center justify-between bg-linear-to-r from-emerald-950/80 to-teal-950/80 border border-emerald-700/40 rounded-2xl px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0"></span>
+                <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider">Serving Now</span>
+              </div>
+              <div className="text-2xl font-black text-white">
+                {currentServingSerial ? `#${String(currentServingSerial).padStart(2, '0')}` : '--'}
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] text-slate-400 truncate max-w-24">{currentServingPatient || 'No patient'}</div>
+                <div className="text-[9px] text-emerald-500 font-bold">{selectedDoctorInfo?.roomNumber || 'Chamber 01'}</div>
               </div>
             </div>
           </div>
@@ -355,18 +436,52 @@ export default function HomePage() {
                   </div>
                   <div>
                     <h2 className="text-base font-black text-white">Book Serial Token</h2>
-                    <p className="text-[11px] text-slate-400">Instant registration — No login needed</p>
+                    <p className="text-[11px] text-slate-400">
+                      {selectedDoctor ? 'Step 2: Fill Patient Info' : 'Step 1: Select a Doctor'}
+                    </p>
                   </div>
                 </div>
 
-                {selectedDoctorInfo && (
-                  <div className="text-right">
-                    <span className="text-[10px] font-extrabold text-emerald-400 bg-emerald-950 px-2.5 py-1 rounded-full border border-emerald-800">
-                      {selectedDoctorInfo.speciality}
-                    </span>
-                  </div>
+                {selectedDoctorInfo && doctors.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDoctor('')}
+                    className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 bg-emerald-950/80 border border-emerald-700/60 px-2.5 py-1 rounded-full transition-all flex items-center gap-1 active:scale-95"
+                  >
+                    <span>{selectedDoctorInfo.speciality}</span>
+                    <span className="text-slate-400 font-normal">| Change 🔄</span>
+                  </button>
                 )}
               </div>
+
+              {/* Selected Doctor Summary Chip */}
+              {selectedDoctorInfo && !issuedTicket && (
+                <div className="flex items-center justify-between bg-emerald-950/60 border border-emerald-500/40 rounded-2xl p-3 text-xs animate-fadeIn">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold shrink-0 shadow-md">
+                      <Stethoscope className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-extrabold text-white text-xs">
+                        {selectedDoctorInfo.user?.name}
+                      </div>
+                      <div className="text-[10px] text-emerald-400 font-medium">
+                        {selectedDoctorInfo.speciality} • {selectedDoctorInfo.roomNumber || 'Chamber 01'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {doctors.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDoctor('')}
+                      className="text-[10px] font-extrabold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 rounded-xl transition-all active:scale-95"
+                    >
+                      Change 🔄
+                    </button>
+                  )}
+                </div>
+              )}
 
               {issuedTicket ? (
                 /* ── Issued Ticket Confirmation ── */
@@ -537,44 +652,170 @@ export default function HomePage() {
                     </button>
                   </div>
                 </div>
-              ) : (
-                /* Booking Form */
-                <form onSubmit={handleBookSerial} className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+              ) : !selectedDoctor ? (
+                /* ── Step 1: Doctor Selection Screen ── */
+                <div className="space-y-3 animate-fadeIn">
+                  <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-3.5 flex items-center justify-between">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                        Patient Name *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Rahim Uddin"
-                        value={bookingForm.patientName}
-                        onChange={(e) =>
-                          setBookingForm({ ...bookingForm, patientName: e.target.value })
-                        }
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
-                      />
+                      <h3 className="text-xs font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Stethoscope className="w-4 h-4" /> Step 1: Select a Doctor
+                      </h3>
+                      <p className="text-[11px] text-slate-300 mt-0.5">Pick a doctor below to check schedule & book serial.</p>
                     </div>
+                  </div>
 
+                  <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+                    {doctors.map((doc) => {
+                      const isDocPaused: boolean = Boolean(
+                        doc.isBookingPaused && (!doc.pausedUntil || new Date() < new Date(doc.pausedUntil))
+                      );
+                      const isDocOff: boolean = Array.isArray(doc.offDays) && doc.offDays.includes(currentDayName);
+
+                      return (
+                        <div
+                          key={doc._id}
+                          onClick={() => setSelectedDoctor(doc._id)}
+                          className="group bg-slate-950 border border-slate-800 hover:border-emerald-500/70 p-3 rounded-2xl cursor-pointer transition-all active:scale-98 flex items-center justify-between gap-3 shadow-md"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-white font-bold shrink-0 shadow-md shadow-emerald-500/20">
+                              <Stethoscope className="w-5 h-5" />
+                            </div>
+                            <div className="truncate">
+                              <h4 className="font-extrabold text-sm text-white group-hover:text-emerald-400 transition-colors truncate">
+                                {doc.user?.name || 'Dr. Medical'}
+                              </h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded-md border border-emerald-800">
+                                  {doc.speciality}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  {doc.roomNumber || 'Chamber 01'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-2">
+                            {isDocPaused ? (
+                              <span className="text-[9px] font-bold text-amber-400 bg-amber-950/80 border border-amber-700/60 px-2 py-1 rounded-lg">
+                                Paused
+                              </span>
+                            ) : isDocOff ? (
+                              <span className="text-[9px] font-bold text-rose-400 bg-rose-950/80 border border-rose-700/60 px-2 py-1 rounded-lg">
+                                Holiday
+                              </span>
+                            ) : (
+                              <span className="text-[11px] font-extrabold text-white bg-emerald-600 group-hover:bg-emerald-500 px-3 py-1.5 rounded-xl shadow-md shadow-emerald-600/30 transition-all flex items-center gap-1">
+                                Select <ChevronRight className="w-3.5 h-3.5" />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : !isFinalBookingAllowed ? (
+                /* ── Chamber / Doctor Closed / Off-Day / Paused Banner ── */
+                <div className="bg-slate-950/80 border border-amber-500/30 rounded-2xl p-5 text-center space-y-3 animate-fadeIn">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto text-amber-400">
+                    <Clock className="w-6 h-6 animate-pulse" />
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-black text-amber-400 uppercase tracking-wider">
+                      {bookingEnabled === false
+                        ? 'Serial Booking Paused'
+                        : isDocPaused
+                        ? `Booking Paused for ${selectedDoctorInfo?.user?.name || 'Doctor'}`
+                        : isDocOffDay
+                        ? `${selectedDoctorInfo?.user?.name || 'Doctor'} Off Today (${currentDayName})`
+                        : !isDocWithinHours
+                        ? `Outside ${selectedDoctorInfo?.user?.name || 'Doctor'} Booking Hours`
+                        : isOffDay
+                        ? `Chamber Closed Today (${currentDayName})`
+                        : 'Outside Chamber Hours'}
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-1.5 leading-relaxed font-medium">
+                      {bookingEnabled === false ? (
+                        'Online serial token bookings are currently paused by the clinic administration.'
+                      ) : isDocPaused ? (
+                        <>
+                          Serial token booking for <span className="text-emerald-400 font-bold">{selectedDoctorInfo?.user?.name}</span> is currently paused by admin ({docPauseUntilText}).
+                        </>
+                      ) : isDocOffDay ? (
+                        <>
+                          <span className="text-emerald-400 font-bold">{selectedDoctorInfo?.user?.name}</span> is on weekly holiday today (<span className="text-rose-400 font-bold">{currentDayName}</span>).
+                        </>
+                      ) : !isDocWithinHours ? (
+                        <>
+                          Serial booking for <span className="text-emerald-400 font-bold">{selectedDoctorInfo?.user?.name}</span> is open between{' '}
+                          <span className="text-emerald-400 font-mono font-bold">{selectedDoctorInfo?.bookingStartTime || '08:00'}</span> and{' '}
+                          <span className="text-emerald-400 font-mono font-bold">{selectedDoctorInfo?.bookingEndTime || '20:00'}</span>.
+                        </>
+                      ) : isOffDay ? (
+                        <>
+                          Today is a weekly clinic holiday (<span className="text-rose-400 font-bold">{currentDayName}</span>).
+                        </>
+                      ) : (
+                        <>
+                          Serial token bookings are open daily between{' '}
+                          <span className="text-emerald-400 font-mono font-bold">{chamberStartTime}</span> and{' '}
+                          <span className="text-emerald-400 font-mono font-bold">{chamberEndTime}</span>.
+                        </>
+                      )}
+                    </p>
+                  </div>
+
+                  {selectedDoctorInfo?.offDays && selectedDoctorInfo.offDays.length > 0 && (
+                    <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-slate-300">Doctor Off Days:</span>
+                      {selectedDoctorInfo.offDays.map((d: string) => (
+                        <span key={d} className="bg-rose-950/60 text-rose-300 border border-rose-800 px-2 py-0.5 rounded-md text-[10px] font-bold">
+                          {d}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* ── Mobile-First Booking Form ── */
+                <form onSubmit={handleBookSerial} className="space-y-3 sm:space-y-3.5">
+                  {/* Patient Name — full width for easy typing on mobile */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5 tracking-wider">
+                      Patient Name *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Rahim Uddin"
+                      value={bookingForm.patientName}
+                      onChange={(e) =>
+                        setBookingForm({ ...bookingForm, patientName: e.target.value })
+                      }
+                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-emerald-500 placeholder:text-slate-600 transition-colors"
+                    />
+                  </div>
+
+                  {/* Phone + Age in 2 cols */}
+                  <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                        Phone Number *
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5 tracking-wider">
+                        Phone *
                       </label>
                       <input
                         type="tel"
                         required
-                        placeholder="+880 1700-000000"
+                        placeholder="01700-000000"
                         value={bookingForm.phone}
                         onChange={(e) => setBookingForm({ ...bookingForm, phone: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full px-3 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-emerald-500 placeholder:text-slate-600 transition-colors"
                       />
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5 tracking-wider">
                         Age *
                       </label>
                       <input
@@ -585,40 +826,49 @@ export default function HomePage() {
                         placeholder="30"
                         value={bookingForm.age}
                         onChange={(e) => setBookingForm({ ...bookingForm, age: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                        className="w-full px-3 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-emerald-500 placeholder:text-slate-600 transition-colors"
                       />
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                        Gender *
-                      </label>
-                      <select
-                        value={bookingForm.gender}
-                        onChange={(e) => setBookingForm({ ...bookingForm, gender: e.target.value })}
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
-                      >
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
-                      </select>
                     </div>
                   </div>
 
+                  {/* Gender — horizontal pill buttons (more touch-friendly than dropdown) */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5 tracking-wider">
+                      Gender *
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {['Male', 'Female', 'Other'].map((g) => (
+                        <button
+                          type="button"
+                          key={g}
+                          onClick={() => setBookingForm({ ...bookingForm, gender: g })}
+                          className={`py-2.5 rounded-xl text-xs font-bold border transition-all active:scale-95 ${
+                            bookingForm.gender === g
+                              ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm shadow-emerald-600/30'
+                              : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Time Slot — 2-col grid for easy thumb tapping on mobile */}
                   {timeSlotEnabled && (
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                        Select Time Slot *
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5 tracking-wider">
+                        Time Slot *
                       </label>
-                      <div className="grid grid-cols-3 gap-1.5">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                         {slots.map((s) => (
                           <button
                             type="button"
                             key={s}
                             onClick={() => setBookingForm({ ...bookingForm, timeSlot: s })}
-                            className={`px-2 py-1 rounded-xl text-[10px] font-bold border transition-all truncate ${
+                            className={`px-2 py-2 rounded-xl text-[10px] sm:text-[11px] font-bold border transition-all active:scale-95 text-center ${
                               bookingForm.timeSlot === s
-                                ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                                ? 'bg-emerald-600 text-white border-emerald-500 shadow-sm shadow-emerald-500/30'
                                 : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700'
                             }`}
                           >
@@ -629,30 +879,32 @@ export default function HomePage() {
                     </div>
                   )}
 
+                  {/* Symptoms — optional, full width */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1">
-                      Symptoms / Reason for Visit (Optional)
+                    <label className="block text-[11px] font-bold text-slate-400 uppercase mb-1.5 tracking-wider">
+                      Symptoms / Reason <span className="text-slate-600 normal-case font-normal">(optional)</span>
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Fever, Headache, General Consultation"
+                      placeholder="e.g. Fever, Headache, Checkup"
                       value={bookingForm.reason}
                       onChange={(e) => setBookingForm({ ...bookingForm, reason: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
+                      className="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-white focus:outline-none focus:border-emerald-500 placeholder:text-slate-600 transition-colors"
                     />
                   </div>
 
                   {bookingError && (
-                    <div className="p-2.5 bg-rose-950/60 border border-rose-800 text-rose-300 text-xs rounded-xl flex items-center gap-2">
+                    <div className="p-3 bg-rose-950/60 border border-rose-800 text-rose-300 text-xs rounded-xl flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span>{bookingError}</span>
                     </div>
                   )}
 
+                  {/* Large, prominent submit button — easy thumb reach */}
                   <button
                     type="submit"
                     disabled={bookingLoading}
-                    className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/30 uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95"
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-600/30 uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95"
                   >
                     <Ticket className="w-4 h-4" />
                     {bookingLoading ? 'Issuing Token...' : 'Get Instant Serial Token'}
@@ -660,6 +912,7 @@ export default function HomePage() {
                 </form>
               )}
             </div>
+
 
             {/* TRACK SERIAL POSITION CARD (PLACED DIRECTLY UNDER BOOK SERIAL TOKEN) */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-3">

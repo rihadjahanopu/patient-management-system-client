@@ -59,6 +59,8 @@ export default function ReceptionistPage() {
     updateAppointmentStatus,
     bookAppointment,
     fetchQueue,
+    startPolling,
+    stopPolling,
   } = useQueueStore();
 
   const slots: string[] = [
@@ -92,8 +94,12 @@ export default function ReceptionistPage() {
   useEffect(() => {
     if (selectedDoctor) {
       setDoctorAndDate(selectedDoctor, today);
+      startPolling(10_000); // auto-refresh queue every 10s
     }
-  }, [selectedDoctor, today, setDoctorAndDate]);
+    return () => {
+      stopPolling();
+    };
+  }, [selectedDoctor, today, setDoctorAndDate, startPolling, stopPolling]);
 
   const handleStatusChange = async (appointmentId: string, status: string) => {
     try {

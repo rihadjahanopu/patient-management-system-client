@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { create } from 'zustand';
@@ -18,13 +19,18 @@ export interface QueueState {
   loading: boolean;
   error: string | null;
   lastUpdated: string;
+  pollingIntervalId: ReturnType<typeof setInterval> | null;
 
   // Actions
   setDoctorAndDate: (doctorId: string, date: string) => void;
   fetchQueue: (doctorId?: string, date?: string) => Promise<void>;
   updateAppointmentStatus: (id: string, status: string) => Promise<void>;
   bookAppointment: (data: Record<string, any>) => Promise<any>;
+  startPolling: (intervalMs?: number) => void;
+  stopPolling: () => void;
 }
+
+const POLLING_INTERVAL_MS: number = 10_000; // 10 seconds
 
 export const useQueueStore = create<QueueState>((set, get) => ({
   doctorId: '',
@@ -41,6 +47,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   loading: false,
   error: null,
   lastUpdated: '',
+  pollingIntervalId: null,
 
   setDoctorAndDate: (doctorId: string, date: string) => {
     set({ doctorId, date });
@@ -48,8 +55,8 @@ export const useQueueStore = create<QueueState>((set, get) => ({
   },
 
   fetchQueue: async (targetDocId?: string, targetDate?: string) => {
-    let docId = targetDocId || get().doctorId;
-    const dt = targetDate || get().date;
+    let docId: string = targetDocId || get().doctorId;
+    const dt: string = targetDate || get().date;
 
     // Auto-resolve default doctor ID if missing
     if (!docId) {
@@ -66,15 +73,18 @@ export const useQueueStore = create<QueueState>((set, get) => ({
 
     if (!docId || !dt) return;
 
-    set({ loading: true, error: null });
+    // Only set loading on first fetch (not on background polls to avoid UI flicker)
+    if (!get().lastUpdated) {
+      set({ loading: true, error: null });
+    }
 
     try {
       const data = await api.appointments.getQueue(docId, dt);
-      const queueList = data.queue || [];
+      const queueList: any[] = data.queue || [];
 
-      const currentServing = queueList.find((a: any) => a.status === 'In Progress') || null;
-      const pendingList = queueList.filter((a: any) => a.status === 'Pending');
-      const nextUp = pendingList[0] || null;
+      const currentServing: any = queueList.find((a: any) => a.status === 'In Progress') || null;
+      const pendingList: any[] = queueList.filter((a: any) => a.status === 'Pending');
+      const nextUp: any = pendingList[0] || null;
 
       set({
         currentServingSerial: currentServing?.serialNumber ?? null,
@@ -87,6 +97,7 @@ export const useQueueStore = create<QueueState>((set, get) => ({
         totalCount: queueList.length,
         queue: queueList,
         loading: false,
+        error: null,
         lastUpdated: new Date().toLocaleTimeString(),
       });
     } catch (err: any) {
@@ -114,6 +125,26 @@ export const useQueueStore = create<QueueState>((set, get) => ({
     } catch (err: any) {
       set({ error: err.message });
       throw err;
+    }
+  },
+
+  startPolling: (intervalMs: number = POLLING_INTERVAL_MS) => {
+    // Avoid duplicate intervals
+    const existingId: ReturnType<typeof setInterval> | null = get().pollingIntervalId;
+    if (existingId !== null) return;
+
+    const id: ReturnType<typeof setInterval> = setInterval(() => {
+      void get().fetchQueue();
+    }, intervalMs);
+
+    set({ pollingIntervalId: id });
+  },
+
+  stopPolling: () => {
+    const id: ReturnType<typeof setInterval> | null = get().pollingIntervalId;
+    if (id !== null) {
+      clearInterval(id);
+      set({ pollingIntervalId: null });
     }
   },
 }));

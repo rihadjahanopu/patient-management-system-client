@@ -70,7 +70,9 @@ export const api = {
     getAll: () => request('/doctors'),
     getById: (id: string) => request(`/doctors/${id}`),
     updateProfile: (data: Record<string, any>) =>
-      request('/doctors/profile', { method: 'PATCH', body: JSON.stringify(data) }),
+      request('/doctors/profile', { method: 'PUT', body: JSON.stringify(data) }),
+    updateDoctor: (id: string, data: Record<string, any>) =>
+      request(`/doctors/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   },
 
   // ─── Appointments ────────────────────────────────────────────
