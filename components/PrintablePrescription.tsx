@@ -29,7 +29,7 @@ export default function PrintablePrescription({ prescription, onBack }: Printabl
   };
 
   const extRx: ExtendedPrescription = prescription as ExtendedPrescription;
-  const appt: ExtendedPrescription['appointment'] = typeof extRx.appointment === 'object' ? extRx.appointment : null;
+  const appt: ExtendedPrescription['appointment'] = typeof extRx.appointment === 'object' && extRx.appointment !== null ? extRx.appointment : undefined;
   const pName: string = prescription.patientName || (typeof appt === 'object' && appt?.patientName) || 'Patient';
   const pAge: number | string = prescription.age || (typeof appt === 'object' && appt?.age) || '--';
   const pGender: string = prescription.gender || (typeof appt === 'object' && appt?.gender) || 'N/A';
