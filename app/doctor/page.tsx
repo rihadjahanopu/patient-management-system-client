@@ -51,9 +51,9 @@ interface Medicine {
 
 export default function DoctorPage() {
   const { user, loading: authLoading } = useAuth();
-  const router = useRouter();
-  const today = new Date().toISOString().split('T')[0];
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const router: ReturnType<typeof useRouter> = useRouter();
+  const today: string = new Date().toISOString().split('T')[0];
+  const dropdownRef: React.RefObject<HTMLDivElement | null> = useRef<HTMLDivElement>(null);
 
   const [activeTab, setActiveTab] = useState<DoctorTab>('consultation');
   const [doctorProfile, setDoctorProfile] = useState<any>(null);
@@ -68,10 +68,10 @@ export default function DoctorPage() {
   const [historyStatusFilter, setHistoryStatusFilter] = useState<'All' | 'Finalized' | 'Draft'>('All');
 
   // Fetch doctor's prescription history
-  const loadRxHistory = useCallback(async () => {
+  const loadRxHistory: () => Promise<void> = useCallback(async (): Promise<void> => {
     setHistoryLoading(true);
     try {
-      const res = await api.prescriptions.getDoctorHistory();
+      const res: { success: boolean; prescriptions?: any[] } = await api.prescriptions.getDoctorHistory();
       setRxHistory(res.prescriptions || []);
     } catch (e: any) {
       console.warn('Could not load rx history:', e);
@@ -162,7 +162,7 @@ export default function DoctorPage() {
 
   // Auto-select serving patient from queue
   useEffect(() => {
-    const serving = queue.find((a: any) => a.status === 'In Progress');
+    const serving: any = queue.find((a: any) => a.status === 'In Progress');
     if (serving && serving._id !== activePatient?._id) {
       setActivePatient(serving);
     }
@@ -176,13 +176,13 @@ export default function DoctorPage() {
       .getByAppointment(activePatient._id)
       .then((data) => {
         if (data.prescription) {
-          const rx = data.prescription;
+          const rx: any = data.prescription;
           setSavedRxId(rx._id);
           if (rx.vitals) setVitals(rx.vitals);
           if (rx.complaints) setComplaints(rx.complaints);
           if (rx.diagnosis) setDiagnosis(rx.diagnosis);
           if (rx.medicines) {
-            const normalizedMeds = rx.medicines.map((m: any, idx: number) => ({
+            const normalizedMeds: Medicine[] = rx.medicines.map((m: any, idx: number) => ({
               ...m,
               brandName: m.brandName || m.medicineName || '',
               medicineName: m.medicineName || m.brandName || '',
@@ -221,7 +221,7 @@ export default function DoctorPage() {
     if (rx.complaints) setComplaints(rx.complaints);
     if (rx.diagnosis) setDiagnosis(rx.diagnosis);
     if (rx.medicines) {
-      const normalizedMeds = rx.medicines.map((m: any, idx: number) => ({
+      const normalizedMeds: Medicine[] = rx.medicines.map((m: any, idx: number) => ({
         ...m,
         brandName: m.brandName || m.medicineName || '',
         medicineName: m.medicineName || m.brandName || '',
@@ -235,7 +235,7 @@ export default function DoctorPage() {
     else setSelectedLabTests([]);
 
     // Set matching patient info if available
-    const appt = typeof rx.appointment === 'object' ? rx.appointment : null;
+    const appt: any = typeof rx.appointment === 'object' ? rx.appointment : null;
     setActivePatient({
       _id: appt?._id || rx.appointment,
       patientName: rx.patientName || appt?.patientName || 'Patient',
@@ -265,11 +265,11 @@ export default function DoctorPage() {
       setSearchMeta(null);
       return;
     }
-    const t = setTimeout(async () => {
+    const t: NodeJS.Timeout = setTimeout(async (): Promise<void> => {
       setIsSearching(true);
       try {
-        const res = await fetch(`/api/medicines?q=${encodeURIComponent(searchQuery)}`);
-        const data = await res.json();
+        const res: Response = await fetch(`/api/medicines?q=${encodeURIComponent(searchQuery)}`);
+        const data: { medicines?: Medicine[]; executionTimeMs?: number; totalMatches?: number } = await res.json();
         setSearchResults(data.medicines || []);
         setSearchMeta({ time: data.executionTimeMs || 1, total: data.totalMatches || 0 });
         setShowDropdown(true);
@@ -335,10 +335,10 @@ export default function DoctorPage() {
       return;
     }
 
-    const finalDiagnosis = diagnosis.trim() || 'General Consultation';
+    const finalDiagnosis: string = diagnosis.trim() || 'General Consultation';
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         appointmentId: activePatient._id,
         vitals,
         complaints,
@@ -348,10 +348,10 @@ export default function DoctorPage() {
         advice,
         followUpDate,
       };
-      const res = savedRxId
+      const res: any = savedRxId
         ? await api.prescriptions.update(savedRxId, payload)
         : await api.prescriptions.create(payload);
-      const rxId = res.prescription?._id || savedRxId;
+      const rxId: string | null = res.prescription?._id || savedRxId;
       setSavedRxId(rxId);
       alert('Prescription saved successfully! You can view or edit it anytime.');
       loadRxHistory();
@@ -374,23 +374,24 @@ export default function DoctorPage() {
       return;
     }
 
-    const finalDiagnosis = diagnosis.trim() || 'General Consultation';
+    const finalDiagnosis: string = diagnosis.trim() || 'General Consultation';
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         appointmentId: activePatient._id,
         vitals,
         complaints,
         diagnosis: finalDiagnosis,
         medicines,
+        labTests: selectedLabTests,
         advice,
         followUpDate,
       };
 
-      let rxId = savedRxId;
+      let rxId: string | null = savedRxId;
       if (!rxId) {
         try {
-          const res = await api.prescriptions.create(payload);
+          const res: any = await api.prescriptions.create(payload);
           rxId = res.prescription?._id || res.prescription?.id;
           if (rxId) setSavedRxId(rxId);
         } catch (err) {
@@ -425,15 +426,15 @@ export default function DoctorPage() {
   };
 
   // Dynamic Prescription History Filter
-  const filteredRxHistory = rxHistory.filter((rx) => {
-    const q = historySearchQuery.toLowerCase().trim();
-    const appt = typeof rx.appointment === 'object' ? rx.appointment : null;
-    const patientName = rx.patientName || appt?.patientName || '';
-    const phone = rx.phone || appt?.phone || '';
-    const date = rx.date || appt?.date || (rx.createdAt ? new Date(rx.createdAt).toISOString().slice(0, 10) : '');
-    const serialNumber = rx.serialNumber || appt?.serialNumber || '';
+  const filteredRxHistory: any[] = rxHistory.filter((rx: any) => {
+    const q: string = historySearchQuery.toLowerCase().trim();
+    const appt: any = typeof rx.appointment === 'object' ? rx.appointment : null;
+    const patientName: string = rx.patientName || appt?.patientName || '';
+    const phone: string = rx.phone || appt?.phone || '';
+    const date: string = rx.date || appt?.date || (rx.createdAt ? new Date(rx.createdAt).toISOString().slice(0, 10) : '');
+    const serialNumber: string | number = rx.serialNumber || appt?.serialNumber || '';
 
-    const matchesSearch =
+    const matchesSearch: boolean =
       !q ||
       patientName.toLowerCase().includes(q) ||
       phone.includes(q) ||
@@ -448,7 +449,7 @@ export default function DoctorPage() {
           m.generic?.toLowerCase().includes(q)
       );
 
-    const matchesStatus =
+    const matchesStatus: boolean =
       historyStatusFilter === 'All' ||
       (historyStatusFilter === 'Finalized' && rx.isFinalized) ||
       (historyStatusFilter === 'Draft' && !rx.isFinalized);
@@ -492,6 +493,12 @@ export default function DoctorPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              {searchMeta && (
+                <span className="text-xs font-bold bg-slate-900 text-emerald-400 px-3 py-1.5 rounded-xl font-mono flex items-center gap-1.5 shadow-xs border border-slate-800 animate-fade-in">
+                  ⚡ {searchMeta.time}ms ({searchMeta.total} matches)
+                </span>
+              )}
+
               <button
                 onClick={() => setActiveTab('history')}
                 className={`flex items-center gap-1.5 px-3.5 py-2 border text-xs font-bold rounded-xl transition-all shadow-xs ${
@@ -715,7 +722,7 @@ export default function DoctorPage() {
                                     <div
                                       key={t.id || t._id || t.testName}
                                       onClick={() => {
-                                        const labelText = t.instructions
+                                        const labelText: string = t.instructions
                                           ? `${t.testName} (${t.instructions})`
                                           : t.testName;
                                         if (!selectedLabTests.includes(labelText)) {
@@ -799,11 +806,6 @@ export default function DoctorPage() {
                             >
                               <Plus className="w-3 h-3" /> + Add Custom Medicine
                             </button>
-                            {searchMeta && (
-                              <span className="text-[10px] font-bold bg-slate-900 text-emerald-400 px-2 py-0.5 rounded-full font-mono">
-                                ⚡ {searchMeta.time}ms ({searchMeta.total} matches)
-                              </span>
-                            )}
                             <span className="text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
                               26K+ Dataset Trie
                             </span>
@@ -1174,14 +1176,14 @@ export default function DoctorPage() {
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-4">
-                      {filteredRxHistory.map((rx) => {
-                        const appt = typeof rx.appointment === 'object' ? rx.appointment : null;
-                        const pName = rx.patientName || appt?.patientName || 'Patient';
-                        const pAge = rx.patientAge || rx.age || appt?.age;
-                        const pGender = rx.patientGender || rx.gender || appt?.gender;
-                        const pPhone = rx.phone || appt?.phone || 'N/A';
-                        const pDate = rx.date || appt?.date || (rx.createdAt ? new Date(rx.createdAt).toISOString().slice(0, 10) : 'N/A');
-                        const pSerial = rx.serialNumber || appt?.serialNumber || 1;
+                      {filteredRxHistory.map((rx: any) => {
+                        const appt: any = typeof rx.appointment === 'object' ? rx.appointment : null;
+                        const pName: string = rx.patientName || appt?.patientName || 'Patient';
+                        const pAge: any = rx.patientAge || rx.age || appt?.age;
+                        const pGender: any = rx.patientGender || rx.gender || appt?.gender;
+                        const pPhone: string = rx.phone || appt?.phone || 'N/A';
+                        const pDate: string = rx.date || appt?.date || (rx.createdAt ? new Date(rx.createdAt).toISOString().slice(0, 10) : 'N/A');
+                        const pSerial: any = rx.serialNumber || appt?.serialNumber || 1;
 
                         return (
                           <div
@@ -1392,6 +1394,22 @@ export default function DoctorPage() {
                 {diagnosis.trim() || 'General Consultation'}
               </p>
             </div>
+
+            {/* Investigations / Lab Tests */}
+            {selectedLabTests && selectedLabTests.length > 0 && (
+              <div>
+                <h4 className="font-bold text-slate-900 text-xs border-b border-slate-300 pb-0.5 mb-1.5 uppercase">
+                  Investigations (Lab Tests)
+                </h4>
+                <ul className="space-y-1 font-semibold text-xs text-slate-900 list-disc list-inside">
+                  {selectedLabTests.map((t: string, idx: number) => (
+                    <li key={idx} className="leading-tight">
+                      <span>{t}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Adv. (Advice) */}
             {advice && (
