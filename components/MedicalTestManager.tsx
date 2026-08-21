@@ -116,7 +116,28 @@ export default function MedicalTestManager() {
     try {
       const res: Response = await fetch('/api/medical-tests');
       const data: { success: boolean; tests: MedicalTest[] } = await res.json();
-      setTests(data.tests || []);
+      const loadedTests: MedicalTest[] = data.tests || [];
+      setTests(loadedTests);
+
+      // Extract unique categories from DB tests & merge with categories list
+      const dbCategories: string[] = loadedTests
+        .map((t: MedicalTest) => t.category)
+        .filter((c: string | undefined): c is string => Boolean(c && c.trim()));
+
+      let storedCustom: string[] = [];
+      try {
+        const stored: string | null = localStorage.getItem(STORAGE_KEY);
+        if (stored) storedCustom = JSON.parse(stored) as string[];
+      } catch { /* ignore */ }
+
+      const allCategories: string[] = Array.from(
+        new Set([...DEFAULT_CATEGORIES, ...storedCustom, ...dbCategories])
+      );
+      setCategories(allCategories);
+
+      // Save custom ones back to localStorage
+      const customOnly: string[] = allCategories.filter((c: string) => !DEFAULT_CATEGORIES.includes(c));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(customOnly));
     } catch {
       showMsg('error', 'Failed to load medical tests.');
     } finally {
@@ -271,16 +292,6 @@ export default function MedicalTestManager() {
               <div className="text-3xl font-black text-indigo-400">{tests.length}</div>
               <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Registered Tests</div>
             </div>
-            {/* Force Sync Button */}
-            <button
-              onClick={() => { void handleForceSync(); }}
-              disabled={syncing}
-              title="Force sync tests from MongoDB database"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 text-xs font-bold transition-all disabled:opacity-60 w-full justify-center cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing...' : 'Sync from DB'}
-            </button>
           </div>
         </div>
       </div>
