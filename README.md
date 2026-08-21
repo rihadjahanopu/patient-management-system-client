@@ -80,6 +80,10 @@ A modern, high-performance, responsive Web Application for clinical queue manage
 patient-management-system-client/
 ├── app/                        # Next.js 16 App Router Directory
 │   ├── admin/                  # Admin Dashboard & System Control Panel
+│   ├── api/                    # Internal API Proxy Routes
+│   │   ├── custom-medicines/   # Custom medicines sync route
+│   │   ├── medical-tests/      # Medical lab tests proxy route
+│   │   └── medicines/          # Local drug search route
 │   ├── doctor/                 # Doctor Workspace & RX Consultation Desk
 │   ├── receptionist/           # Receptionist Queue & Registration Desk
 │   ├── login/                  # User Sign-in Page
