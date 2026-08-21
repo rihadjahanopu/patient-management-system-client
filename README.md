@@ -16,20 +16,46 @@ A modern, high-performance, responsive Web Application for clinical queue manage
 - **🔐 Multi-Role Authentication & Access Control**
   - Custom RBAC dashboard layouts tailored for **Admin**, **Doctor**, **Receptionist**, and **Patient**.
   - Persistent authentication via HTTP-only cookie tokens & `useAuth` React Context.
-- **🩺 Interactive Prescription Generator**
-  - Dynamic prescription creation with real-time preview and vitals tracking (BP, Pulse, Weight, Temp, SpO2).
-  - Standardized dosage frequency formatting (e.g., `1+0+1`, `0+1+0`) and duration/instruction tags.
+
+- **📱 Step-by-Step Doctor-First Booking Flow & Mobile UX**
+  - **Step 1: Doctor Roster Selection**: Patients pick their doctor first from interactive doctor cards displaying speciality, room number, visiting hours, and availability.
+  - **Step 2: Touch-Friendly Booking Form**: Optimized for mobile devices with large touch targets, 3-pill gender buttons, responsive 2-column time slot grid, and sticky action buttons.
+  - **Slim Mobile Chamber Bar**: Compact 1-line Currently Serving bar for small viewports.
+
+- **⚡ Real-Time Background Queue Polling System**
+  - Instant cross-device serial token synchronization between Mobile & Desktop without manual reloads.
+  - Zero-flicker background polling at 10s intervals across Public Landing, Doctor Desk, and Receptionist Queue via **Zustand** store.
+
+- **⏰ Admin Chamber Hours, Holidays & Global Kill-Switch**
+  - Configure daily opening/closing hours (`chamberStartTime`, `chamberEndTime`) and weekly holidays (`offDays`).
+  - One-click global booking status toggle (**OPEN** / **CLOSED**) to halt serial token issuance across the clinic.
+  - Automatic landing page enforcement with custom notice banners explaining reopening times.
+
+- **👨‍⚕️ Per-Doctor Schedules, Duration Pause Timers & Off-Days**
+  - Admin can configure individual booking hours (e.g. `08:00 AM - 12:00 PM`) and weekly off-days per Doctor.
+  - **Duration Pause Controls**: Admin can pause a doctor's serial booking with automated expiration timers:
+    - ⏸️ `Pause 2 Hours` (auto-resumes after 2h)
+    - ⏸️ `Pause 4 Hours` (auto-resumes after 4h)
+    - ⏸️ `Pause Rest of Today` (auto-resumes next day)
+    - ⏸️ `Pause OFF (Indefinite)`
+    - ▶️ `Resume Booking`
+  - Public booking form automatically displays doctor-specific pause countdowns & reopening times.
+
+- **🩺 Interactive Prescription Generator & Lab Tests**
+  - Dynamic prescription creation with real-time preview, lab tests ordering, and vitals tracking (BP, Pulse, Weight, Temp, SpO2).
+  - Standardized dosage frequency formatting (e.g., `1+0+1`, `0+1+0`), duration, and instruction tags.
+  - Strict price privacy: medical test prices are kept internal for billing and hidden from printed prescriptions.
+
+- **🗑️ Admin Prescription Record Management & Deletion**
+  - System-wide prescription archive with search, filter by doctor/status, inspection modal, and permanent record deletion (`DELETE /api/prescriptions/:id`).
+
 - **💊 Offline Medicine Dictionary & Auto-Complete**
   - Ultra-fast client-side search across a **7.8MB local drug database** (`medicine.json`).
   - Support for custom clinic medicine additions with zero server overhead.
-- **📋 Real-Time Patient Queue System**
-  - Live serial status updates managed by **Zustand** state store.
-  - Public live tracker allowing patients to track their position in line (`Serials Ahead`) in real-time.
-- **🖨️ Print & Export Prescriptions**
-  - One-click print layout and image export powered by `html-to-image`.
-  - Professional hospital letterhead integration with customizable clinic branding.
-- **✨ Modern Aesthetics & Responsive Design**
-  - Glassmorphic UI elements, interactive micro-animations, sleek dark mode accents, and Lucide icons.
+
+- **🖨️ Ultra-HD Print & Export Prescriptions**
+  - One-click print layout and high-definition PNG ticket export powered by `html-to-image`.
+  - Professional hospital OPD ticket and prescription sheet templates with clinic branding.
 
 ---
 
@@ -43,7 +69,7 @@ A modern, high-performance, responsive Web Application for clinical queue manage
 | **Styling** | [Tailwind CSS v4](https://tailwindcss.com) + `@tailwindcss/postcss` | Modern CSS Framework & Design Tokens |
 | **State Management** | [Zustand 5](https://zustand-demo.pmnd.rs) + React Context | Client Queue State & Global Auth |
 | **Icons** | [Lucide React](https://lucide.dev) | Modern Vector UI Icons |
-| **Export Utility** | `html-to-image` | Canvas / Image Generation for RX Printing |
+| **Export Utility** | `html-to-image` | Canvas / Image Generation for RX & OPD Tickets |
 | **Auth Cookies** | `js-cookie` | Client-Side Cookie Parsing & Storage |
 
 ---
@@ -53,21 +79,24 @@ A modern, high-performance, responsive Web Application for clinical queue manage
 ```
 patient-management-system-client/
 ├── app/                        # Next.js 16 App Router Directory
-│   ├── admin/                  # Admin Dashboard & User Management
-│   ├── doctor/                 # Doctor Dashboard & RX Editor
-│   ├── receptionist/           # Receptionist Queue & Booking Desk
+│   ├── admin/                  # Admin Dashboard & System Control Panel
+│   ├── doctor/                 # Doctor Workspace & RX Consultation Desk
+│   ├── receptionist/           # Receptionist Queue & Registration Desk
 │   ├── login/                  # User Sign-in Page
-│   ├── register/               # Registration & Doctor Request Form
+│   ├── register/               # Doctor & User Registration Form
 │   ├── track/                  # Public Live Queue Tracker Page
 │   ├── layout.tsx              # Root Layout with Auth Provider
-│   ├── page.tsx                # Public Landing Page & Booking UI
+│   ├── page.tsx                # Mobile-First Public Landing Page & Booking UI
 │   └── globals.css             # Tailwind v4 Styles & Custom Utilities
 ├── components/                 # Reusable UI & Feature Components
 │   ├── AdminSidebar.tsx        # Admin Navigation Sidebar
 │   ├── AppointmentBooking.tsx  # Patient Booking Wizard Modal
+│   ├── ChamberScheduleSettings.tsx # Admin Chamber Hours & Holiday Control
 │   ├── ClinicBrandingSettings.tsx # Clinic Branding Configuration
 │   ├── DoctorDashboard.tsx     # Comprehensive Doctor Desk & RX Desk
+│   ├── DoctorScheduleCard.tsx  # Admin Per-Doctor Schedule & Duration Pause Card
 │   ├── DoctorSidebar.tsx       # Doctor Workspace Navigation
+│   ├── MedicalTestManager.tsx  # Clinical Lab Tests Manager
 │   ├── MedicineManager.tsx     # Custom Drug Dictionary Manager
 │   ├── Navbar.tsx              # Header Navigation Bar
 │   ├── PatientLiveTracker.tsx  # Real-time Public Serial Tracker Component
@@ -78,12 +107,13 @@ patient-management-system-client/
 │   ├── QueueStatus.tsx         # Live Queue Management Desk
 │   └── ReceptionistSidebar.tsx # Receptionist Workspace Navigation
 ├── hooks/                      # Custom React Hooks
-│   └── useAuth.tsx             # Global Auth & Role Checking Hook
+│   ├── useAuth.tsx             # Global Auth & Role Checking Hook
+│   ├── useClinicSetting.ts     # DB-Synced Clinic Settings Hook
+│   └── useQueueStore.ts        # Zustand Real-time Queue Polling Store
 ├── lib/                        # Utility Functions & API Helpers
 │   ├── api.ts                  # Centralized Fetch API Wrapper with Bearer Auth
 │   └── dictionary-search.ts    # Fast Medicine Auto-complete Search Engine
 ├── public/                     # Static Assets & Images
-├── custom-medicines.json       # Clinic-specific Custom Drugs Database
 ├── medicine.json               # Full Local Medicine Dictionary (~7.8MB)
 ├── package.json                # Dependencies & Build Scripts
 ├── tsconfig.json               # TypeScript Configuration
@@ -112,7 +142,7 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ### 3. Installation & Local Execution
 
 ```bash
-# Clone repository or navigate to directory
+# Navigate to client directory
 cd patient-management-system-client
 
 # Install dependencies
@@ -126,42 +156,14 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 🔄 State Architecture
+## 🔄 Recent Updates & Changelog (August 21, 2026)
 
-```mermaid
-graph TD
-    A[App Root / Providers] --> B[AuthProvider Context]
-    A --> C[Zustand Queue Store]
-    
-    B -->|User Auth Token| D[lib/api.ts Client]
-    D -->|Bearer Token Header| E[Backend REST API]
-    
-    C -->|Real-time Serial Sync| F[QueueStatus Component]
-    C -->|Live Patient Counter| G[PatientLiveTracker Component]
-    
-    H[medicine.json] -->|Local Memory Search| I[dictionary-search.ts]
-    I -->|Auto-Complete| J[Doctor Prescriptions Desk]
-```
-
----
-
-## 📜 Available Scripts
-
-- `npm run dev` — Starts local development server on `http://localhost:3000`.
-- `npm run build` — Builds the application for production deployment.
-- `npm run start` — Starts Next.js production server.
-- `npm run lint` — Runs ESLint code quality checks.
-
----
-
-## 🚀 Deployment (Vercel)
-
-This frontend client is fully optimized for **Vercel**:
-
-1. Connect your repository to Vercel.
-2. Set Root Directory to `patient-management-system-client`.
-3. Add Environment Variable: `NEXT_PUBLIC_API_URL` pointing to your live backend endpoint.
-4. Deploy! Next.js will build pages with static optimization and dynamic server components.
+- ⚡ **Real-Time Polling Engine**: Added `startPolling(10000)` to `useQueueStore.ts` for instant serial updates across public, doctor, and receptionist views.
+- 📱 **Mobile UX Overhaul**: 2-step booking flow (Select Doctor first → Fill Patient Info), pill gender toggles, slim chamber bar, and responsive touch targets.
+- ⏰ **Chamber Hours & Holiday Control**: DB-backed `chamberStartTime`, `chamberEndTime`, `offDays`, and `bookingEnabled` kill-switch with admin controls.
+- 👨‍⚕️ **Per-Doctor Duration Pause**: Added 2h, 4h, Rest of Today, and indefinite pause timers per doctor with automated reopening countdowns.
+- 🗑️ **Prescription Delete API**: Admin can delete prescription records with confirmation modals (`DELETE /api/prescriptions/:id`).
+- 🧪 **Lab Test Support**: Prescribe clinical lab tests with price privacy enforcement.
 
 ---
 
